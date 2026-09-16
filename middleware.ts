@@ -1,18 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import countries from './lib/countries.json'
 
-// run only on homepage
 export const config = {
   matcher: '/',
 }
 
-export async function middleware(req: NextRequest) {
-  const { nextUrl: url, geo } = req
-  const country = geo.country || 'US'
-  const city = geo.city || 'San Francisco'
-  const region = geo.region || 'CA'
+function decodeHeader(value: string | null, fallback: string) {
+  if (!value) return fallback
 
-  const countryInfo = countries.find((x) => x.cca2 === country)
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return fallback
+  }
+}
+
+export async function middleware(req: NextRequest) {
+  const url = req.nextUrl.clone()
+  const fallbackCountry = countries.find((item) => item.cca2 === 'US')!
+  const requestedCountry = (req.headers.get('x-vercel-ip-country') || 'US')
+    .trim()
+    .toUpperCase()
+  const countryInfo =
+    countries.find((item) => item.cca2 === requestedCountry) ?? fallbackCountry
+  const country = countryInfo.cca2
+  const city = decodeHeader(req.headers.get('x-vercel-ip-city'), 'San Francisco')
+  const region = req.headers.get('x-vercel-ip-country-region') || 'CA'
 
   const currencyCode = Object.keys(countryInfo.currencies)[0]
   const currency = countryInfo.currencies[currencyCode]
