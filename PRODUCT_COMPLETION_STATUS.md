@@ -1,12 +1,12 @@
 # Product Completion Status — geo
 
-Canonical repository: `shikakker/geo`
-Completion branch: `portfolio-improvements-2026-08`
-PR: #1
+Canonical repository: `shikakker/geo`  
+Completion branch: `portfolio-improvements-2026-08`  
+Draft PR: #1
 
 ## Product boundary
 
-A small privacy-conscious demo of Vercel request geolocation headers. It must display only location metadata actually supplied by the hosting edge. It must not fabricate a city/country when headers are missing, and personalized output must not be shared through caches.
+A privacy-conscious demo of Vercel request geolocation headers. It displays only location metadata actually supplied by the hosting edge, never fabricates a fallback city/country, and prevents personalized location output from being shared through caches.
 
 ## T01–T10 core tasks
 
@@ -17,11 +17,11 @@ A small privacy-conscious demo of Vercel request geolocation headers. It must di
 | T03 | DONE | Made country metadata/currency/language lookup optional for unknown country codes. |
 | T04 | DONE | Added `Cache-Control: private, no-store` to personalized rewritten responses. |
 | T05 | DONE | Migrated removed `NextRequest.geo` access to Vercel request headers. |
-| T06 | DONE | Migrated the runtime to Next 16.3.5 / React 19.3.0 / Node 22. |
-| T07 | DONE | Migrated Next 16 routing interception from deprecated `middleware.ts` to `proxy.ts`. |
-| T08 | DONE | Removed `@vercel/examples-ui` runtime coupling and legacy `next/image` props from the page shell. |
-| T09 | DONE | Exact-head source contracts pass on commit `55c37b36f4c698814ebc0a25c4a3ecfe5b61459e` (Quality runs `35098833530` and `35098842505`). |
-| T10 | BLOCKED | Deterministic dependency verification is not complete because the branch has no `package-lock.json`; CI workflow mutation required to generate/verify it is currently blocked by the connector, and no current-head Vercel deployment exists. |
+| T06 | DONE | Migrated runtime to Next 16.3.5 / React 19.3.0 / Node 22. |
+| T07 | DONE | Migrated interception from deprecated `middleware.ts` to Next 16 `proxy.ts`. |
+| T08 | DONE | Removed all `@vercel/examples-ui` runtime/styling coupling and legacy image props. |
+| T09 | DONE | Generated and committed a verified `package-lock.json` only after install/audit/tests/typecheck/lint/build passed. |
+| T10 | BLOCKED | Exact-current-head Vercel preview/browser verification is blocked by Vercel Hobby build-rate capacity. |
 
 ## I01–I10 improvements
 
@@ -35,8 +35,8 @@ A small privacy-conscious demo of Vercel request geolocation headers. It must di
 | I06 | DONE | Semantic description list for returned headers. |
 | I07 | DONE | Visible focus treatment on documentation link. |
 | I08 | DONE | Explicit copy that geolocation is approximate and provider-dependent. |
-| I09 | DONE | Production high-severity audit identified the old Next 15/PostCSS chain; manifest is now migrated to Next 16.3.5. |
-| I10 | BLOCKED | Frozen install, typecheck, lint, production build and post-migration audit still need one executable lockfile-generation gate. |
+| I09 | DONE | Regression contract now rejects residual `@vercel/examples-ui` Tailwind/build coupling. |
+| I10 | DONE | Permanent read-only Quality enforces frozen install, production audit, tests, typecheck, zero-warning lint and production build. |
 
 ## F01–F10 product features
 
@@ -49,20 +49,37 @@ A small privacy-conscious demo of Vercel request geolocation headers. It must di
 | F05 | DONE | Explicit unavailable state when edge metadata is incomplete. |
 | F06 | DONE | No fabricated location fallback. |
 | F07 | DONE | Private/no-store cache boundary for personalized output. |
-| F08 | DONE | Current supported Next 16 runtime boundary. |
-| F09 | DEFERRED WITH REASON | Exact-GPS/location permission is intentionally out of scope; this product demonstrates coarse edge geolocation only. |
+| F08 | DONE | Maintained Next 16 runtime boundary. |
+| F09 | DEFERRED WITH REASON | Exact GPS/browser permission is intentionally out of scope; this product demonstrates coarse edge geolocation only. |
 | F10 | DEFERRED WITH REASON | Persistent location history is intentionally not added because it provides no value to this demo and would increase privacy risk. |
 
 ## Verification evidence
 
-- The original bootstrap dependency gate executed on a real GitHub runner and stopped at `npm audit --omit=dev --audit-level=high` because Next 15.5.25 carried a vulnerable bundled PostCSS (`<=8.5.22`).
-- The runtime manifest was subsequently migrated to Next 16.3.5 / React 19.3.0 and the source was adapted to the Next 16 proxy/page boundaries.
-- Exact-head source-contract runs `35098833530` and `35098842505` are GREEN on commit `55c37b36f4c698814ebc0a25c4a3ecfe5b61459e`.
-- The branch currently has no `package-lock.json`. Therefore clean `npm ci`, typecheck, lint, production build and post-migration audit are not claimed as verified.
-- Current Vercel project `prj_zYJOiKpFSDVfa7CxMgnbIYmzlAUt` has no deployment for the current head. Its only READY production deployment is the historical initial commit; two later roadmap deployments are ERROR.
+The first real dependency bootstrap reproduced a production build failure after install/audit/tests/typecheck/lint passed: `tailwind.config.js` still imported removed `@vercel/examples-ui/tailwind`.
 
-No merge or production promotion was performed.
+TDD evidence:
+- RED Quality run `35118267286` failed after the release contract was extended to reject example-UI Tailwind coupling.
+- GREEN Quality run `35118304540` passed after the obsolete preset/content path was removed.
 
-BLOCKED ONLY BY: one executable dependency-lock verification lane (generate lock → clean install → audit → tests → typecheck → lint → build) and an exact-head Vercel preview/browser check.
+The first repaired bootstrap then proved install/audit/tests/typecheck/lint/build but exposed a workflow-only commit failure: `git rebase` refused build-generated unstaged changes. The write workflow was simplified to a safe non-force push; any concurrent branch movement would still be rejected by Git.
 
-Status: **PARTIAL**
+Verified lock bootstrap run `35118517388`, job `104870014581`:
+- `npm install`: PASS;
+- production audit: PASS / 0 vulnerabilities;
+- tests: PASS 12/12;
+- typecheck: PASS;
+- strict lint: PASS;
+- Next 16 production build: PASS;
+- verified `package-lock.json` commit/push: PASS.
+
+The temporary write-capable bootstrap workflow was then removed. Final read-only exact-head verification on code/release head `84e48dd11e26d5f351193998ee3d4cc26a12c75c`, run `35118665473`, job `104870522541`: `npm ci` → production audit → 12 tests → typecheck → strict lint → production build all PASS.
+
+Canonical connected Vercel project: `geo` (`prj_zYJOiKpFSDVfa7CxMgnbIYmzlAUt`). Vercel commit status on `84e48dd...` explicitly reports `Deployment rate limited — retry in 24 hours`, so no exact-head browser/runtime PASS is claimed.
+
+## Remaining release gate
+
+**BLOCKED ONLY BY:** Vercel Hobby build capacity for an exact-head preview/browser smoke.
+
+Status: **PARTIAL — repository release lane is green; hosted exact-head verification remains external.**
+
+No merge, production promotion, billing action or destructive operation was performed automatically.
