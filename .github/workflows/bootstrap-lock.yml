@@ -40,6 +40,4 @@ jobs:
             exit 0
           fi
           git commit -m 'build: pin verified geo dependencies'
-          git fetch origin portfolio-improvements-2026-08
-          git rebase origin/portfolio-improvements-2026-08
           git push origin HEAD:portfolio-improvements-2026-08
