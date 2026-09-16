@@ -9,6 +9,7 @@ const proxy = read('proxy.ts')
 const app = read('pages/_app.tsx')
 const page = read('pages/index.tsx')
 const nextConfig = read('next.config.js')
+const tailwindConfig = read('tailwind.config.js')
 const pkg = JSON.parse(read('package.json'))
 
 test('runtime dependencies are pinned to the maintained Next 16 release line', () => {
@@ -55,8 +56,9 @@ test('app shell is repository-owned and page avoids legacy Next image props', ()
   assert.doesNotMatch(page, /objectFit=/)
 })
 
-test('production build config does not depend on example UI or mutate country data over the network', () => {
+test('production styling and build config do not depend on removed example UI packages', () => {
   assert.doesNotMatch(nextConfig, /@vercel\/examples-ui/)
+  assert.doesNotMatch(tailwindConfig, /@vercel\/examples-ui/)
   assert.doesNotMatch(nextConfig, /withCountryInfo/)
   assert.doesNotMatch(nextConfig, /scripts\/countries/)
   assert.match(nextConfig, /remotePatterns/)
