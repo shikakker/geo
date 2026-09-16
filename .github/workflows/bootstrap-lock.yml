@@ -1,6 +1,7 @@
 name: Bootstrap geo lock
 
 on:
+  workflow_dispatch:
   push:
     branches: [portfolio-improvements-2026-08]
     paths:
