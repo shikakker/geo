@@ -3,15 +3,19 @@ import fs from 'node:fs'
 import test from 'node:test'
 
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
+const exists = (path) => fs.existsSync(new URL(`../${path}`, import.meta.url))
 
 const middleware = read('middleware.ts')
+const app = read('pages/_app.tsx')
+const page = read('pages/index.tsx')
 const pkg = JSON.parse(read('package.json'))
 
-test('runtime dependencies are pinned to maintained non-floating lines', () => {
-  assert.notEqual(pkg.dependencies.next, 'canary')
-  assert.notEqual(pkg.dependencies.react, 'latest')
-  assert.notEqual(pkg.dependencies['react-dom'], 'latest')
-  assert.match(pkg.engines?.node ?? '', /^22/)
+test('runtime dependencies are pinned to the maintained Next 16 release line', () => {
+  assert.equal(pkg.dependencies.next, '16.3.5')
+  assert.equal(pkg.dependencies.react, '19.3.0')
+  assert.equal(pkg.dependencies['react-dom'], '19.3.0')
+  assert.equal(pkg.engines?.node, '22.x')
+  assert.equal(pkg.dependencies['@vercel/examples-ui'], undefined)
 })
 
 test('geolocation reads Vercel headers instead of removed NextRequest.geo', () => {
@@ -36,4 +40,16 @@ test('country header is normalized before optional lookup', () => {
 test('personalized geolocation output is not shared through caches', () => {
   assert.match(middleware, /Cache-Control/)
   assert.match(middleware, /private, no-store/)
+})
+
+test('Next 16 uses proxy convention instead of deprecated middleware convention', () => {
+  assert.equal(exists('proxy.ts'), true)
+  assert.equal(exists('middleware.ts'), false)
+})
+
+test('app shell is repository-owned and page avoids legacy Next image props', () => {
+  assert.doesNotMatch(app, /@vercel\/examples-ui/)
+  assert.doesNotMatch(page, /@vercel\/examples-ui/)
+  assert.doesNotMatch(page, /layout=["']fill["']/)
+  assert.doesNotMatch(page, /objectFit=/)
 })
