@@ -1,5 +1,6 @@
 name: Bootstrap geo lock
 
+# One-shot verified dependency lock bootstrap for the completion branch.
 on:
   workflow_dispatch:
   push:
