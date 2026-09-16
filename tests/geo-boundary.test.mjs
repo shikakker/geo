@@ -7,12 +7,10 @@ const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), '
 const middleware = read('middleware.ts')
 const pkg = JSON.parse(read('package.json'))
 
-
 test('runtime dependencies are pinned to maintained non-floating lines', () => {
   assert.notEqual(pkg.dependencies.next, 'canary')
   assert.notEqual(pkg.dependencies.react, 'latest')
   assert.notEqual(pkg.dependencies['react-dom'], 'latest')
-  assert.notEqual(pkg.dependencies['@vercel/examples-ui'], 'latest')
   assert.match(pkg.engines?.node ?? '', /^22/)
 })
 
@@ -23,12 +21,19 @@ test('geolocation reads Vercel headers instead of removed NextRequest.geo', () =
   assert.match(middleware, /x-vercel-ip-country-region/)
 })
 
-test('unknown country codes fall back without dereferencing undefined country data', () => {
-  assert.match(middleware, /fallbackCountry/)
-  assert.match(middleware, /countryInfo\s*\?\?\s*fallbackCountry/)
+test('unknown or missing country codes fail closed instead of fabricating a US location', () => {
+  assert.doesNotMatch(middleware, /fallbackCountry/)
+  assert.doesNotMatch(middleware, /['"]San Francisco['"]/)
+  assert.doesNotMatch(middleware, /['"]CA['"]/)
+  assert.match(middleware, /countryInfo\?\./)
 })
 
-test('country header is normalized before lookup and flag rendering', () => {
+test('country header is normalized before optional lookup', () => {
   assert.match(middleware, /toUpperCase\(\)/)
-  assert.match(middleware, /countryInfo\.cca2/)
+  assert.match(middleware, /countryInfo\?\.cca2/)
+})
+
+test('personalized geolocation output is not shared through caches', () => {
+  assert.match(middleware, /Cache-Control/)
+  assert.match(middleware, /private, no-store/)
 })
