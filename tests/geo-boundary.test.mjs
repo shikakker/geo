@@ -5,7 +5,7 @@ import test from 'node:test'
 const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 const exists = (path) => fs.existsSync(new URL(`../${path}`, import.meta.url))
 
-const middleware = read('middleware.ts')
+const proxy = read('proxy.ts')
 const app = read('pages/_app.tsx')
 const page = read('pages/index.tsx')
 const pkg = JSON.parse(read('package.json'))
@@ -19,27 +19,27 @@ test('runtime dependencies are pinned to the maintained Next 16 release line', (
 })
 
 test('geolocation reads Vercel headers instead of removed NextRequest.geo', () => {
-  assert.doesNotMatch(middleware, /\bgeo\b\s*}\s*=\s*req|req\.geo/)
-  assert.match(middleware, /x-vercel-ip-country/)
-  assert.match(middleware, /x-vercel-ip-city/)
-  assert.match(middleware, /x-vercel-ip-country-region/)
+  assert.doesNotMatch(proxy, /\bgeo\b\s*}\s*=\s*req|req\.geo/)
+  assert.match(proxy, /x-vercel-ip-country/)
+  assert.match(proxy, /x-vercel-ip-city/)
+  assert.match(proxy, /x-vercel-ip-country-region/)
 })
 
 test('unknown or missing country codes fail closed instead of fabricating a US location', () => {
-  assert.doesNotMatch(middleware, /fallbackCountry/)
-  assert.doesNotMatch(middleware, /['"]San Francisco['"]/)
-  assert.doesNotMatch(middleware, /['"]CA['"]/)
-  assert.match(middleware, /countryInfo\?\./)
+  assert.doesNotMatch(proxy, /fallbackCountry/)
+  assert.doesNotMatch(proxy, /['"]San Francisco['"]/)
+  assert.doesNotMatch(proxy, /['"]CA['"]/)
+  assert.match(proxy, /countryInfo\?\./)
 })
 
 test('country header is normalized before optional lookup', () => {
-  assert.match(middleware, /toUpperCase\(\)/)
-  assert.match(middleware, /countryInfo\?\.cca2/)
+  assert.match(proxy, /toUpperCase\(\)/)
+  assert.match(proxy, /countryInfo\?\.cca2/)
 })
 
 test('personalized geolocation output is not shared through caches', () => {
-  assert.match(middleware, /Cache-Control/)
-  assert.match(middleware, /private, no-store/)
+  assert.match(proxy, /Cache-Control/)
+  assert.match(proxy, /private, no-store/)
 })
 
 test('Next 16 uses proxy convention instead of deprecated middleware convention', () => {
