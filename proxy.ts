@@ -11,6 +11,16 @@ type CountryMetadata = {
   languages?: Record<string, string>
 }
 
+const GEO_QUERY_KEYS = [
+  'country',
+  'city',
+  'region',
+  'currencyCode',
+  'currencySymbol',
+  'name',
+  'languages',
+] as const
+
 function decodeHeader(value: string | null) {
   if (!value) return ''
 
@@ -41,6 +51,10 @@ export function proxy(req: NextRequest) {
     currencySymbol: currency?.symbol ?? '',
     name: currency?.name ?? '',
     languages: Object.values(countryInfo?.languages ?? {}).join(', '),
+  }
+
+  for (const key of GEO_QUERY_KEYS) {
+    url.searchParams.delete(key)
   }
 
   for (const [key, value] of Object.entries(location)) {
