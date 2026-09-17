@@ -12,6 +12,19 @@ test('missing edge geolocation is not replaced with a fabricated city/country', 
   assert.match(page, /Location unavailable/)
 })
 
+test('incoming query parameters cannot spoof edge-derived geolocation', () => {
+  assert.match(proxy, /const GEO_QUERY_KEYS = \[/)
+  for (const key of ['country', 'city', 'region', 'currencyCode', 'currencySymbol', 'name', 'languages']) {
+    assert.match(proxy, new RegExp(`['"]${key}['"]`))
+  }
+
+  const clearStart = proxy.indexOf('for (const key of GEO_QUERY_KEYS)')
+  const deleteQuery = proxy.indexOf('url.searchParams.delete(key)', clearStart)
+  const trustedWrite = proxy.indexOf('for (const [key, value] of Object.entries(location))')
+  assert.ok(clearStart >= 0 && deleteQuery > clearStart, 'internal geo query keys must be removed')
+  assert.ok(trustedWrite > deleteQuery, 'trusted edge-derived values must be written only after clearing client query values')
+})
+
 test('country metadata lookup is fail-safe for unknown edge country codes', () => {
   assert.match(proxy, /countryInfo\?\./)
   assert.doesNotMatch(proxy, /Object\.keys\(countryInfo\.currencies\)/)
