@@ -6,80 +6,85 @@ Draft PR: #1
 
 ## Product boundary
 
-A privacy-conscious demo of Vercel request geolocation headers. It displays only location metadata actually supplied by the hosting edge, never fabricates a fallback city/country, and prevents personalized location output from being shared through caches.
+A privacy-conscious demo of Vercel request geolocation headers. It displays only location metadata actually supplied by the hosting edge, never fabricates a fallback city/country, rejects client-spoofed internal geo query values, and prevents personalized location output from being shared through caches.
 
 ## T01–T10 core tasks
 
-| ID | Status | Task / verification |
+| ID | Status | Task |
 | --- | --- | --- |
-| T01 | DONE | Reproduced the unsafe fallback behavior that substituted US / San Francisco / CA when edge geolocation was absent. |
-| T02 | DONE | Replaced fabricated fallback values with an explicit `Location unavailable` state. |
-| T03 | DONE | Made country metadata/currency/language lookup optional for unknown country codes. |
-| T04 | DONE | Added `Cache-Control: private, no-store` to personalized rewritten responses. |
-| T05 | DONE | Migrated removed `NextRequest.geo` access to Vercel request headers. |
-| T06 | DONE | Migrated runtime to Next 16.3.5 / React 19.3.0 / Node 22. |
-| T07 | DONE | Migrated interception from deprecated `middleware.ts` to Next 16 `proxy.ts`. |
-| T08 | DONE | Removed all `@vercel/examples-ui` runtime/styling coupling and legacy image props. |
-| T09 | DONE | Generated and committed a verified `package-lock.json` only after install/audit/tests/typecheck/lint/build passed. |
-| T10 | BLOCKED | Exact-current-head Vercel preview/browser verification is blocked by Vercel Hobby build-rate capacity. |
+| T01 | DONE | Reproduced unsafe US/San Francisco/CA fallback behavior. |
+| T02 | DONE | Explicit `Location unavailable` state replaces fabricated fallback values. |
+| T03 | DONE | Country metadata/currency/language lookup is fail-safe. |
+| T04 | DONE | Personalized responses are `private, no-store`. |
+| T05 | DONE | Vercel request headers replace removed `NextRequest.geo`. |
+| T06 | DONE | Runtime migrated to Next 16.3.5 / React 19.3 / Node 22. |
+| T07 | DONE | Next 16 `proxy.ts` convention. |
+| T08 | DONE | Removed `@vercel/examples-ui` coupling and legacy image props. |
+| T09 | DONE | Verified deterministic package-lock + permanent frozen Quality. |
+| T10 | BLOCKED | Exact-current Vercel preview/browser verification is rate-limited. |
 
 ## I01–I10 improvements
 
 | ID | Status | Improvement |
 | --- | --- | --- |
-| I01 | DONE | Normalize country code before lookup. |
+| I01 | DONE | Normalize country code. |
 | I02 | DONE | Decode edge city header defensively. |
-| I03 | DONE | Treat missing region/currency/language data as unavailable instead of throwing. |
-| I04 | DONE | Typed server-side query props. |
-| I05 | DONE | Responsive max-width layout for the data card. |
-| I06 | DONE | Semantic description list for returned headers. |
-| I07 | DONE | Visible focus treatment on documentation link. |
-| I08 | DONE | Explicit copy that geolocation is approximate and provider-dependent. |
-| I09 | DONE | Regression contract now rejects residual `@vercel/examples-ui` Tailwind/build coupling. |
-| I10 | DONE | Permanent read-only Quality enforces frozen install, production audit, tests, typecheck, zero-warning lint and production build. |
+| I03 | DONE | Missing region/currency/language becomes unavailable, not exception. |
+| I04 | DONE | Typed server-side props. |
+| I05 | DONE | Responsive data-card layout. |
+| I06 | DONE | Semantic description list. |
+| I07 | DONE | Visible focus on external docs link. |
+| I08 | DONE | Explicit coarse/provider-dependent location copy. |
+| I09 | DONE | Internal geo rewrite query keys are cleared before edge-derived values are written, preventing client spoofing. |
+| I10 | DONE | Permanent Quality enforces install/audit/tests/typecheck/lint/build. |
 
 ## F01–F10 product features
 
-| ID | Status | Feature / user value |
+| ID | Status | Feature |
 | --- | --- | --- |
-| F01 | DONE | Display edge-provided country/city/region. |
-| F02 | DONE | Display mapped currency metadata when known. |
-| F03 | DONE | Display mapped language metadata when known. |
-| F04 | DONE | Display raw Vercel geolocation header names as educational context. |
-| F05 | DONE | Explicit unavailable state when edge metadata is incomplete. |
-| F06 | DONE | No fabricated location fallback. |
-| F07 | DONE | Private/no-store cache boundary for personalized output. |
-| F08 | DONE | Maintained Next 16 runtime boundary. |
-| F09 | DEFERRED WITH REASON | Exact GPS/browser permission is intentionally out of scope; this product demonstrates coarse edge geolocation only. |
-| F10 | DEFERRED WITH REASON | Persistent location history is intentionally not added because it provides no value to this demo and would increase privacy risk. |
+| F01 | DONE | Edge-provided country/city/region. |
+| F02 | DONE | Currency metadata when known. |
+| F03 | DONE | Language metadata when known. |
+| F04 | DONE | Educational display of Vercel geo header names. |
+| F05 | DONE | Explicit unavailable state. |
+| F06 | DONE | No fabricated default location. |
+| F07 | DONE | Private/no-store personalized response. |
+| F08 | DONE | Maintained Next 16 runtime. |
+| F09 | DEFERRED WITH REASON | Exact GPS/browser permission intentionally out of scope. |
+| F10 | DEFERRED WITH REASON | No persistent location history; unnecessary privacy risk. |
 
 ## Verification evidence
 
-The first real dependency bootstrap reproduced a production build failure after install/audit/tests/typecheck/lint passed: `tailwind.config.js` still imported removed `@vercel/examples-ui/tailwind`.
+Earlier dependency bootstrap and release work verified Next 16 migration, package-lock, production audit, 12 regressions, typecheck, strict lint and production build.
 
-TDD evidence:
-- RED Quality run `35118267286` failed after the release contract was extended to reject example-UI Tailwind coupling.
-- GREEN Quality run `35118304540` passed after the obsolete preset/content path was removed.
+### Latest client-spoofing slice
 
-The first repaired bootstrap then proved install/audit/tests/typecheck/lint/build but exposed a workflow-only commit failure: `git rebase` refused build-generated unstaged changes. The write workflow was simplified to a safe non-force push; any concurrent branch movement would still be rejected by Git.
+The proxy cloned the incoming URL and only set geo query keys when edge metadata was non-empty. A user-supplied `?city=San%20Francisco&country=US` could therefore survive when Vercel geo headers were absent/partial and be rendered by `getServerSideProps`, contradicting the no-fabrication product boundary.
 
-Verified lock bootstrap run `35118517388`, job `104870014581`:
-- `npm install`: PASS;
-- production audit: PASS / 0 vulnerabilities;
-- tests: PASS 12/12;
-- typecheck: PASS;
-- strict lint: PASS;
-- Next 16 production build: PASS;
-- verified `package-lock.json` commit/push: PASS.
+- `9f32cc74b5eee757ce79a23592d46579c26f5a8d` — regression first: all internal geo query keys must be deleted before trusted edge-derived writes.
+- `82d542f94a399ccd5425fb2ad4e4e4ffd535e644` — defines `GEO_QUERY_KEYS`, deletes those seven keys from the cloned URL, then writes only non-empty edge-derived location metadata. Unrelated query parameters are preserved.
+- Exact-head Quality run `35282820114`, job `105408409949`: **PASS**:
+  - `npm ci`: PASS;
+  - production audit: PASS;
+  - all tests including anti-spoof regression: PASS;
+  - typecheck: PASS;
+  - strict lint: PASS;
+  - Next 16 production build: PASS.
 
-The temporary write-capable bootstrap workflow was then removed. Final read-only exact-head verification on code/release head `84e48dd11e26d5f351193998ee3d4cc26a12c75c`, run `35118665473`, job `104870522541`: `npm ci` → production audit → 12 tests → typecheck → strict lint → production build all PASS.
+## Hosted state
 
-Canonical connected Vercel project: `geo` (`prj_zYJOiKpFSDVfa7CxMgnbIYmzlAUt`). Vercel commit status on `84e48dd...` explicitly reports `Deployment rate limited — retry in 24 hours`, so no exact-head browser/runtime PASS is claimed.
+Canonical Vercel project `geo` remains connected. Exact runtime-head status for `82d542f9...` is still **Deployment rate limited** before application build, so hosted/browser proof is not claimed.
 
 ## Remaining release gate
 
-**BLOCKED ONLY BY:** Vercel Hobby build capacity for an exact-head preview/browser smoke.
+**BLOCKED ONLY BY:** Vercel Hobby capacity for an exact-head preview/browser smoke.
 
-Status: **PARTIAL — repository release lane is green; hosted exact-head verification remains external.**
+## Project checkpoint
+
+**PROJECT:** `geo`  
+**Fixed this pass:** client query strings can no longer spoof trusted Vercel geolocation metadata when edge headers are missing/partial.  
+**Verification:** exact-head install/audit/tests/typecheck/lint/build **PASS**; Vercel exact head = RATE-LIMITED.  
+**Git:** `portfolio-improvements-2026-08`, Draft PR #1; verified runtime head `82d542f9...`.  
+**Status:** **PARTIAL**.
 
 No merge, production promotion, billing action or destructive operation was performed automatically.
