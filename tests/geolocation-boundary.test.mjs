@@ -39,3 +39,10 @@ test('location strings are rendered as data and decoded defensively', () => {
   assert.doesNotMatch(page, /decodeURIComponent\(name\)/)
   assert.doesNotMatch(page, /decodeURIComponent\(city\)/)
 })
+
+
+test('country display does not leak visitor requests to a third-party flag CDN', () => {
+  assert.doesNotMatch(page, /flagcdn\.com/i)
+  assert.match(page, /countryCodeToFlagEmoji/)
+  assert.match(page, /role="img"/)
+})
