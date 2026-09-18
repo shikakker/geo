@@ -16,6 +16,12 @@ function queryValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? '' : value ?? ''
 }
 
+function countryCodeToFlagEmoji(countryCode: string) {
+  const code = countryCode.trim().toUpperCase()
+  if (!/^[A-Z]{2}$/.test(code)) return '🌐'
+  return String.fromCodePoint(...[...code].map((char) => 127397 + char.charCodeAt(0)))
+}
+
 export const getServerSideProps: GetServerSideProps<GeoProps> = async ({ query }) => ({
   props: {
     name: queryValue(query.name),
@@ -98,13 +104,13 @@ export default function Index({
         ) : (
           <section className="mt-16 w-full max-w-2xl rounded-lg border border-gray-300 bg-white shadow-lg transition hover:shadow-2xl">
             <div className="flex items-center border-b p-4">
-              <Image
-                alt={`${country} flag`}
-                className="rounded-full"
-                src={`https://flagcdn.com/96x72/${country.toLowerCase()}.png`}
-                width={32}
-                height={32}
-              />
+              <span
+                role="img"
+                aria-label={`${country} flag`}
+                className="text-3xl leading-none"
+              >
+                {countryCodeToFlagEmoji(country)}
+              </span>
               <div className="ml-4 mr-auto text-left">
                 <h2 className="font-semibold">{name || country}</h2>
                 <p className="text-gray-700">{city}</p>
