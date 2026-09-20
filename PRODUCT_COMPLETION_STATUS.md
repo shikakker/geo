@@ -88,3 +88,10 @@ Canonical Vercel project `geo` remains connected. Exact runtime-head status for 
 **Status:** **PARTIAL**.
 
 No merge, production promotion, billing action or destructive operation was performed automatically.
+\n\n## 2026-09-20 continuation
+
+- P1 privacy boundary: edge-derived geo metadata no longer traverses the internal rewrite query string.
+- `proxy.ts` clears client-supplied internal geo headers, writes trusted `x-geo-*` request headers, and still deletes spoofable legacy geo query keys.
+- `pages/index.tsx` now reads only proxy-owned headers and sets `Cache-Control: private, no-store` on the SSR response itself.
+- `tests/geo-boundary.test.mjs` permanently guards query removal, header ownership and SSR no-store behavior.
+\n
