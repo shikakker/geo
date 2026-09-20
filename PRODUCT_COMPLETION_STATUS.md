@@ -95,3 +95,4 @@ No merge, production promotion, billing action or destructive operation was perf
 - `pages/index.tsx` now reads only proxy-owned headers and sets `Cache-Control: private, no-store` on the SSR response itself.
 - `tests/geo-boundary.test.mjs` permanently guards query removal, header ownership and SSR no-store behavior.
 \n
+- Exact-head Quality exposed a real TypeScript release blocker in `countryCodeToFlagEmoji`: string spread was incompatible with the repository target. It now uses `split('')`, preserving behavior while passing the configured typecheck target.
