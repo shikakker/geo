@@ -12,7 +12,7 @@ type GeoProps = {
   currencySymbol: string
 }
 
-function queryValue(value: string | string[] | undefined) {
+function headerValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? '' : value ?? ''
 }
 
@@ -22,17 +22,21 @@ function countryCodeToFlagEmoji(countryCode: string) {
   return String.fromCodePoint(...[...code].map((char) => 127397 + char.charCodeAt(0)))
 }
 
-export const getServerSideProps: GetServerSideProps<GeoProps> = async ({ query }) => ({
-  props: {
-    name: queryValue(query.name),
-    languages: queryValue(query.languages),
-    city: queryValue(query.city),
-    region: queryValue(query.region),
-    country: queryValue(query.country),
-    currencyCode: queryValue(query.currencyCode),
-    currencySymbol: queryValue(query.currencySymbol),
-  },
-})
+export const getServerSideProps: GetServerSideProps<GeoProps> = async ({ req, res }) => {
+  res.setHeader('Cache-Control', 'private, no-store')
+
+  return {
+    props: {
+      name: headerValue(req.headers['x-geo-currency-name']),
+      languages: headerValue(req.headers['x-geo-languages']),
+      city: headerValue(req.headers['x-geo-city']),
+      region: headerValue(req.headers['x-geo-region']),
+      country: headerValue(req.headers['x-geo-country']),
+      currencyCode: headerValue(req.headers['x-geo-currency-code']),
+      currencySymbol: headerValue(req.headers['x-geo-currency-symbol']),
+    },
+  }
+}
 
 export default function Index({
   name,
