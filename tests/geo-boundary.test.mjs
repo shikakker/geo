@@ -63,3 +63,21 @@ test('production styling and build config do not depend on removed example UI pa
   assert.doesNotMatch(nextConfig, /scripts\/countries/)
   assert.match(nextConfig, /remotePatterns/)
 })
+
+
+test('geo metadata stays out of rewritten query parameters', () => {
+  assert.match(proxy, /GEO_REQUEST_HEADERS/)
+  assert.match(proxy, /request:\s*\{ headers: requestHeaders \}/)
+  assert.doesNotMatch(proxy, /url\.searchParams\.set\(key, value\)/)
+})
+
+test('SSR trusts proxy-owned geo headers instead of geo query values', () => {
+  assert.match(page, /req\.headers\['x-geo-country'\]/)
+  assert.match(page, /req\.headers\['x-geo-city'\]/)
+  assert.match(page, /res\.setHeader\('Cache-Control', 'private, no-store'\)/)
+  assert.doesNotMatch(page, /\{ query \}/)
+})
+
+test('proxy clears client-supplied internal geo headers before writing trusted values', () => {
+  assert.match(proxy, /requestHeaders\.delete\(headerName\)/)
+})
