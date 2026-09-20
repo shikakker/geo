@@ -19,7 +19,7 @@ function headerValue(value: string | string[] | undefined) {
 function countryCodeToFlagEmoji(countryCode: string) {
   const code = countryCode.trim().toUpperCase()
   if (!/^[A-Z]{2}$/.test(code)) return '🌐'
-  return String.fromCodePoint(...[...code].map((char) => 127397 + char.charCodeAt(0)))
+  return String.fromCodePoint(...code.split('').map((char) => 127397 + char.charCodeAt(0)))
 }
 
 export const getServerSideProps: GetServerSideProps<GeoProps> = async ({ req, res }) => {
