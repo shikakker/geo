@@ -21,6 +21,16 @@ const GEO_QUERY_KEYS = [
   'languages',
 ] as const
 
+const GEO_REQUEST_HEADERS = {
+  country: 'x-geo-country',
+  city: 'x-geo-city',
+  region: 'x-geo-region',
+  currencyCode: 'x-geo-currency-code',
+  currencySymbol: 'x-geo-currency-symbol',
+  name: 'x-geo-currency-name',
+  languages: 'x-geo-languages',
+} as const
+
 function decodeHeader(value: string | null) {
   if (!value) return ''
 
@@ -57,11 +67,18 @@ export function proxy(req: NextRequest) {
     url.searchParams.delete(key)
   }
 
+  const requestHeaders = new Headers(req.headers)
+  for (const headerName of Object.values(GEO_REQUEST_HEADERS)) {
+    requestHeaders.delete(headerName)
+  }
   for (const [key, value] of Object.entries(location)) {
-    if (value) url.searchParams.set(key, value)
+    const headerName = GEO_REQUEST_HEADERS[key as keyof typeof GEO_REQUEST_HEADERS]
+    if (value) requestHeaders.set(headerName, value)
   }
 
-  const response = NextResponse.rewrite(url)
+  const response = NextResponse.rewrite(url, {
+    request: { headers: requestHeaders },
+  })
   response.headers.set('Cache-Control', 'private, no-store')
   return response
 }
