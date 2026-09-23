@@ -1,14 +1,18 @@
 import type { AppProps } from 'next/app'
-import type { LayoutProps } from '@vercel/examples-ui/layout'
-import { getLayout } from '@vercel/examples-ui'
-import '@vercel/examples-ui/globals.css'
+import Head from 'next/head'
+import '../styles/globals.css'
 
 export default function MyApp({ Component, pageProps }: AppProps) {
-  const Layout = getLayout<LayoutProps>(Component)
-
   return (
-    <Layout title="Geolocation" path="edge-functions/geolocation">
+    <>
+      <Head>
+        <title>Geolocation Header Demo</title>
+        <meta
+          name="description"
+          content="Inspect coarse Vercel geolocation headers with explicit unavailable states."
+        />
+      </Head>
       <Component {...pageProps} />
-    </Layout>
+    </>
   )
 }
