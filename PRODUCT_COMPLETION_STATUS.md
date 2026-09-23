@@ -96,3 +96,13 @@ No merge, production promotion, billing action or destructive operation was perf
 - `tests/geo-boundary.test.mjs` permanently guards query removal, header ownership and SSR no-store behavior.
 \n
 - Exact-head Quality exposed a real TypeScript release blocker in `countryCodeToFlagEmoji`: string spread was incompatible with the repository target. It now uses `split('')`, preserving behavior while passing the configured typecheck target.
+
+## 2026-09-23 verification refresh
+
+- Runtime head remains `3550419b1d530efd501e5f72ee6532fb47793306`; no new P0/P1 was identified in the inspected proxy/header ownership and SSR privacy paths.
+- GitHub Quality run `35504794468`: **SUCCESS**.
+- Exact-head Vercel status: **SUCCESS**.
+- Proxy-owned `x-geo-*` headers, spoofed-query removal, explicit unavailable state and private/no-store SSR remain intact.
+- Remaining gate: interactive exact-preview browser QA.
+
+Status remains **PARTIAL** only for browser verification. Keep Draft; no merge or production promotion.
