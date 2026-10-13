@@ -46,12 +46,19 @@ try{
   assert.equal(state.cesiumActive,true,'A real 3D detail scene must become visible');
   assert.equal(state.diagnostic.activeScene,sceneId,'The correct georeferenced scene must be selected');
   assert.ok(state.diagnostic.sceneVisibleTiles>0,'At least one actual model tile must be rendered');
+  const cityScene=sceneId==='tokyo-chiyoda-plateau'||sceneId==='japan-plateau-cities';
   await page.locator('[data-lod="quality"]').click();
   await page.waitForTimeout(300);
-  const lod=await page.evaluate(()=>window.__earthlensDiagnostics?.()?.lodSSE);
-  assert.equal(lod,8,'Cesium LOD quality button must change maximumScreenSpaceError to 8 px');
+  const quality=await page.evaluate(()=>window.__earthlensDiagnostics?.());
+  assert.equal(quality.lodMode,'quality','Quality selection must update the control state');
+  assert.equal(await page.locator('[data-lod="quality"]').getAttribute('aria-pressed'),'true');
+  assert.equal(quality.lodSSE,cityScene?48:8,
+    'Quality LOD must honor the GPU safety floor for PLATEAU, while preserving native KHR splat detail');
   await page.locator('[data-lod="balanced"]').click();
-  assert.equal(await page.evaluate(()=>window.__earthlensDiagnostics?.()?.lodSSE),16,'Balance must restore SSE 16');
+  const balanced=await page.evaluate(()=>window.__earthlensDiagnostics?.());
+  assert.equal(balanced.lodMode,'balanced','Balanced selection must update the control state');
+  assert.equal(balanced.lodSSE,cityScene?48:16,
+    'Balanced LOD must preserve both model quality controls and PLATEAU memory safety');
   console.log('Scene center pixel luma variation',sceneId,imageLumaStddev.toFixed(2));
   assert.ok(imageLumaStddev>=14,'A real 3D model must be visually visible, not a blank tinted Cesium viewport (stddev='+imageLumaStddev.toFixed(2)+')');
 }finally{await browser.close()}
