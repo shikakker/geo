@@ -47,6 +47,8 @@ jobs:
           npm install --no-save playwright@1.56.1 --no-audit --no-fund
           npx playwright install --with-deps chromium
       - name: Start GitHub Pages candidate
+        env:
+          EARTHLENS_BASE: /geo/
         run: |
           npm run preview -- --port 4173 > /tmp/earthlens-pages-preview.log 2>&1 &
           for i in $(seq 1 30); do
