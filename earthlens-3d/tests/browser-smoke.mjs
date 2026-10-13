@@ -40,12 +40,14 @@ for (const {name,width,height,isMobile} of [
         spinnerHidden:document.getElementById('loading').classList.contains('hidden'),
         searchVisible:document.getElementById('search-text').getBoundingClientRect().width>50,
         bodyScrollWidth:document.body.scrollWidth,
+        searchButtonRight:Math.round(document.querySelector('#place-search button[type="submit"]').getBoundingClientRect().right),
       };
     });
     assert.ok(metrics.mapSize[0]>=width-5 && metrics.mapSize[1]>=height-5,'Map must cover viewport');
     assert.ok(metrics.canvasSize || metrics.fallback,'MapLibre canvas or Leaflet raster DOM must exist');
     assert.ok(metrics.spinnerHidden,'Blocking spinner must be removed when map is ready');
     assert.ok(metrics.searchVisible,'Search must remain usable');
+    assert.ok(metrics.searchButtonRight<=width+1,'Search submit button must fit inside viewport');
     assert.ok(!errors.some(x=>/does not provide an export named 'default'|Failed to resolve module specifier|SyntaxError/i.test(x)),
       'MapLibre import failed: '+errors.join(' | '));
     await page.screenshot({path:'screenshots/earthlens-'+name+'.png',animations:'disabled'});
