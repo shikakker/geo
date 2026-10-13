@@ -56,6 +56,8 @@ jobs:
           exit 1
       - name: Check real desktop and mobile map rendering
         run: node tests/browser-smoke.mjs
+      - name: Probe Tokyo PLATEAU 3D Tiles and log provider errors
+        run: node tests/scene-smoke.mjs
       - name: Upload map screenshots
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
