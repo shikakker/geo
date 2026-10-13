@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "readme": "10 permissively licensed OSS components. Status distinguishes integrated runtime adapters from candidates. Open-source code may be self-hosted without metered API keys; remotely hosted imagery/models/CDNs may enforce bandwidth, access and license limits.",
+  "libraries": [
+    {
+      "name": "MapLibre GL JS",
+      "url": "https://github.com/maplibre/maplibre-gl-js",
+      "license": "BSD-3-Clause",
+      "role": "Global vector maps, building extrusions and terrain",
+      "status": "runtime"
+    },
+    {
+      "name": "CesiumJS",
+      "url": "https://github.com/CesiumGS/cesium",
+      "license": "Apache-2.0",
+      "role": "Native KHR_gaussian_splatting + 3D Tiles renderer, lazy-loaded",
+      "status": "runtime-on-KHR-scene"
+    },
+    {
+      "name": "maplibre-gl-splat",
+      "url": "https://github.com/opengeos/maplibre-gl-splat",
+      "license": "MIT",
+      "role": "Georeferenced raw Gaussian splat scene adapter, lazy-loaded",
+      "status": "runtime-on-raw-splat"
+    },
+    {
+      "name": "Spark",
+      "url": "https://github.com/Spatial-Logic/spark",
+      "license": "MIT",
+      "role": "WebGL Gaussian splat renderer used by maplibre-gl-splat",
+      "status": "transitive-of-raw-splat"
+    },
+    {
+      "name": "Three.js",
+      "url": "https://github.com/mrdoob/three.js",
+      "license": "MIT",
+      "role": "Scene graph / rendering used by maplibre-gl-splat",
+      "status": "transitive-of-raw-splat"
+    },
+    {
+      "name": "maplibre-three-plugin",
+      "url": "https://github.com/dvt3d/maplibre-three-plugin",
+      "license": "MIT",
+      "role": "MapLibre / Three geographic coordinates bridge",
+      "status": "transitive-of-raw-splat"
+    },
+    {
+      "name": "PMTiles",
+      "url": "https://github.com/protomaps/PMTiles",
+      "license": "BSD-3-Clause",
+      "role": "Self-hosted packed map tile source protocol, optional",
+      "status": "optional-adapter"
+    },
+    {
+      "name": "3d-tiles-renderer",
+      "url": "https://github.com/NASA-AMMOS/3DTilesRendererJS",
+      "license": "MIT",
+      "role": "Alternative 3D Tiles streaming engine",
+      "status": "candidate-not-bundled"
+    },
+    {
+      "name": "3D Tiles RendererJS 3DGS plugin",
+      "url": "https://github.com/WilliamLiu-1997/3D-Tiles-RendererJS-3DGS-Plugin",
+      "license": "Apache-2.0",
+      "role": "KHR 3DGS 3D Tiles alternative, optional",
+      "status": "candidate-not-bundled"
+    },
+    {
+      "name": "GaussianSplats3D",
+      "url": "https://github.com/mkkellogg/GaussianSplats3D",
+      "license": "MIT",
+      "role": "Alternative standalone Splat/PLY/KSplat viewer",
+      "status": "candidate-not-bundled"
+    }
+  ]
+}
