@@ -14,7 +14,7 @@
       "source": "https://github.com/bertt/3DGS-3DTiles-demo",
       "licenseNote": "External third-party sample. Load only from the upstream provider; redistribution rights of the captured asset are not asserted.",
       "verifiedFrom": "3D Tiles root ECEF position [3911500.239905, 351825.9731979, 5008787.136998] = 52.087424N 5.139727E; glTF extensionsRequired: KHR_gaussian_splatting + KHR_gaussian_splatting_compression_spz_2.",
-      "cameraRangeMeters": 105
+      "cameraRangeMeters": 0
     },
     {
       "id": "redmond-campus-khr",
