@@ -262,6 +262,10 @@ async function loadKhrScene(scene,epoch){
       });
       viewer.scene.requestRender();
     });
+    // A tileVisible event precedes GPU splat sorting/texture readiness. Do not
+    // reveal Cesium over the working 3D map until the renderer has settled.
+    await new Promise(resolve=>setTimeout(resolve,
+      scene.type==='khr-3dtiles'?5200:3200));
     if(epoch!==app.sceneEpoch){viewer.destroy();return}
     stage.classList.remove('warming');
     stage.classList.add('active');stage.setAttribute('aria-hidden','false');
