@@ -106,3 +106,15 @@ No merge, production promotion, billing action or destructive operation was perf
 - Remaining gate: interactive exact-preview browser QA.
 
 Status remains **PARTIAL** only for browser verification. Keep Draft; no merge or production promotion.
+
+
+## 2026-10-13 — Batch 11: root Geo vs EarthLens split, safe integration and preview
+
+- Verified repository `main` at `7eb3c2603ec80fcbe4198f35550df4c79457e4da` contains two distinct applications: the obsolete root Next.js geolocation demo and the new `earthlens-3d/` Vite app.
+- The root Vercel project `geo` (ID `prj_zYJOiKpFSDVfa7CxMgnbIYmzlAUt`) production deployment `dpl_AVeJRRcphfGGN53SJSXWKKUSPqto` failed during npm install with ERESOLVE: ESLint 8 vs eslint-config-next canary 16 requiring ESLint >=9. The open hardening PR #1 already has pinned Next 16.3.5, React 19.3, ESLint 9.39.5, lockfile and successful prior CI proof; it had diverged from main because EarthLens was added later.
+- Created merge commit `8d31a808332a4e140229bf24cd2a328ce68bc522` in Draft PR #1 with two parents (old PR and latest main). Its tree retains exact `earthlens-3d/` tree `bd16cf02e7f2f210fb2232c9ed866f3123f26f25` and both workflows unchanged, together with the hardened root Next.js files. Comparison `main...PR` now shows **ahead 50, behind 0**, `mergeable=true`; **no merge to main**.
+- Diagnosed a second deployment accuracy defect: Vercel EarthLens `dpl_CkT6MGn8shpSnH45Hm75Z341SBy4` reported READY but served legacy 2026-10-13 15:33 HTML with `./app.js` and `unpkg.com/maplibre-gl`, not current Vite bundle and local worker.
+- Created an explicit **preview**, without production targeting, for PR SHA `8d31a80` against Vercel EarthLens project `prj_pF6396s5qJX4DfIOD6XdpBSRVyxj`, with Vite framework, root `earthlens-3d`, `npm run build`, output `dist`: deployment `dpl_44Zc3t8Cq6ys8bXGYidcjT875AEP` **READY**, at https://earthlens-3d-lz7sgbr9o-egordenisov.vercel.app/ .
+- Vercel build logs show npm install **PASS**, Vite build **PASS**, Node integration **11/11 PASS** and worker/CSS output verification **PASS**. HTTP fetch of the exact preview returns **200** and `/assets/index-ytM9bjn7.js` plus bundled CSS; unlike the old production alias it has **no external MapLibre CDN or `./app.js`**.
+- **Remaining gates:** actual Chromium viewport/console/network/3D tile and fallback QA on this exact preview; verify latest root Geo Next.js preview/build for merged SHA; determine Vercel root project deployment trigger and avoid indiscriminately promoting the PR. Old EarthLens production alias still serves the stale artifact; no automatic production promotion or destructive change made.
+- **Status:** root Geo **PARTIAL**, EarthLens Vite **PREVIEW BUILD VERIFIED / BROWSER QA PENDING**, [Draft PR #1](https://github.com/shikakker/geo/pull/1).
