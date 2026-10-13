@@ -56,6 +56,7 @@ for (const {name,width,height,isMobile} of [
     assert.ok(metrics.canvasSize || metrics.fallback,'MapLibre canvas or Leaflet raster DOM must exist');
     assert.ok(metrics.buildingCount>0,'No real OpenStreetMap building volumes loaded in the city center; engine='+metrics.engine);
     if(metrics.fallback)assert.ok(metrics.hasCanvas2dBuildings,'Fallback must draw 2.5D buildings on Canvas2D');
+    if(metrics.webgl2)assert.equal(metrics.engine,'webgl-3d','WebGL2 is present: show the native tilted 3D globe/building renderer, not a flat fallback');
     else assert.equal(metrics.engine,'webgl-3d','WebGL map must operate in true 3D mode');
     assert.ok(metrics.spinnerHidden,'Blocking spinner must be removed when map is ready');
     assert.ok(metrics.searchVisible,'Search must remain usable');
