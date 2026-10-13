@@ -2,6 +2,7 @@ import * as maplibregl from 'maplibre-gl';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'leaflet/dist/leaflet.css';
+import {attachCanvasBuildingLayer} from './fallback-3d.js';
 // MapLibre v6 uses a separate worker. Vite must bundle it via ?worker&url.
 maplibregl.setWorkerUrl(maplibreWorkerUrl);
 const $ = id => document.getElementById(id);
@@ -17,8 +18,9 @@ const DEM_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}
 const CESIUM_VERSION = '1.141';
 const CESIUM_JS = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VERSION + '/Build/Cesium/Cesium.js';
 const CESIUM_CSS = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VERSION + '/Build/Cesium/Widgets/widgets.css';
-const defaultView = { center: [5.139727, 52.087424], zoom: 15.1, pitch: 52, bearing: -15 };
-const app = { map:null, scenes:[], marker:[], terrainAdded:false, is3d:true, activeScene:null, sceneLoading:null, sceneEpoch:0, cesium:null, viewer:null, splatControl:null, splatIds:new Set(), photoRequest:0, geosearchAt:0, tiltInProgress:false, userCamera3d:true, pendingToken:0, fallbackActive:false, fallbackStarting:false, leaflet:null, leafletLib:null, mapReady:false, bootTimer:null, styleIndex:0, tileErrors:0, sceneDataLoaded:false };
+// Midtown is deliberately the starting point: 3D skyscrapers are unmistakable.
+const defaultView = { center: [-73.9853, 40.7487], zoom: 16.35, pitch: 67, bearing: -24 };
+const app = { map:null, scenes:[], marker:[], terrainAdded:false, is3d:true, activeScene:null, sceneLoading:null, sceneEpoch:0, cesium:null, viewer:null, splatControl:null, splatIds:new Set(), photoRequest:0, geosearchAt:0, tiltInProgress:false, userCamera3d:true, pendingToken:0, fallbackActive:false, fallbackStarting:false, leaflet:null, leafletLib:null, mapReady:false, bootTimer:null, styleIndex:0, tileErrors:0, sceneDataLoaded:false, cityMode:'osm-3d', canvasBuildings:null, globeActive:false, renderedBuildings:0 };
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
 const fmt=n=>Number(n).toFixed(4);
 const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -34,27 +36,87 @@ function locateNearestScene(){if(!app.map||!app.scenes.length)return null;const 
 function closestNearby(){if(!app.map)return null;const center=app.map.getCenter();return app.scenes.map(scene=>({scene,distance:meters(center.lat,center.lng,scene.latitude,scene.longitude)})).sort((a,b)=>a.distance-b.distance)[0]||null}
 function updateGuidance(){
   if(app.activeScene)return;
+  if(app.fallbackActive){const n=app.canvasBuildings?.count||0;
+    $('guidance').textContent=app.map.getZoom()>=14.4
+      ?'Дома объёмные в резервном Canvas-режиме ('+n+' объектов данных). Для настоящего 3D и Gaussian нужен WebGL2.'
+      :'Приближайте город: резервный Canvas-движок автоматически создаст объём домов по базе OpenStreetMap.';
+    setMode('CANVAS 2.5D',n?'OSM · '+n+' ОБЪЕКТОВ':'РЕЗЕРВ БЕЗ WEBGL');return;
+  }
   const z=app.map.getZoom();const nearby=closestNearby();
-  if(z<12){$('guidance').textContent='Исследуйте планету и приближайте нужный район. Доступные здания станут объёмными автоматически.';setMode('MAP','ГЛОБАЛЬНАЯ КАРТА')}
-  else if(z<15.8){$('guidance').textContent='Объёмные здания и рельеф уже подгружаются. Ещё приблизьте место с отметкой ✳ для фотосцены.';setMode('GEOMETRY 3D','OSM · ВЫСОТА ЗДАНИЙ')}
-  else{const hint=nearby&&nearby.distance<350?'Ещё приблизьте отметку ✳ — подключится настоящая KHR Gaussian Splat-сцена.':'Здания объёмные. Фотореалистичные сканы появляются только там, где есть исходные 3D-данные.';$('guidance').textContent=hint;setMode('3D DETAIL','ВЫСОТЫ · OPENSTREETMAP')}
+  if(z<12){$('guidance').textContent='Вращайте глобус и приближайтесь к городу. Здания автоматически превратятся в объёмные модели на карте.';setMode('GLOBE','ГЛОБУС · DEM')}
+  else if(z<15.8){$('guidance').textContent='Появляются реальные объёмы зданий: контуры OpenStreetMap, высоты и рельеф. Приближайте дальше для подробностей.';setMode('BUILDINGS 3D','OSM · ОБЪЁМНЫЕ ЗДАНИЯ')}
+  else{const hint=nearby&&nearby.distance<350?'Ещё приблизьте отметку ✳ — подключится настоящая KHR Gaussian Splat-сцена.':'Все доступные OSM-здания отображаются объёмными. Фотореалистичные Gaussian-сканы — только на отмеченных геоточках.';$('guidance').textContent=hint;setMode('3D DETAIL','ВЫСОТЫ · OPENSTREETMAP')}
 }
-function initOpenBuildings(){const m=app.map;if(!m.isStyleLoaded())return;const id='earthlens-3d-buildings';if(m.getLayer(id))return;const style=m.getStyle();const vector=Object.entries(style.sources||{}).find(([k,s])=>s.type==='vector'&&(/openmaptiles|openfreemap/i.test(k+' '+(s.url||''))))||Object.entries(style.sources||{}).find(([_,s])=>s.type==='vector');if(!vector){console.warn('No vector source for OSM buildings');return}for(const layer of style.layers||[])if(layer.type==='fill-extrusion'&&layer.id!==id){try{m.setLayoutProperty(layer.id,'visibility','none')}catch{}}
-const before=(style.layers||[]).find(l=>l.type==='symbol')?.id;
-const height=['coalesce',['to-number',['get','render_height']],['to-number',['get','height']],12];
-const base=['coalesce',['to-number',['get','render_min_height']],['to-number',['get','min_height']],0];
-const config={id,type:'fill-extrusion',source:vector[0],'source-layer':'building',minzoom:13,paint:{
- 'fill-extrusion-color':['interpolate',['linear'],height,0,'#8a9e94',14,'#b4c0ae',42,'#d5c8ac',125,'#f4dbac',360,'#f8dca5'],
- 'fill-extrusion-height':['interpolate',['linear'],['zoom'],13.2,0,15.2,height],
- 'fill-extrusion-base':base,
- 'fill-extrusion-opacity':0.93}};
-try{m.addLayer(config,before)}catch(err){console.warn('Zoom-extrusion failed; trying simple height',err);config.paint['fill-extrusion-height']=height;try{m.addLayer(config,before)}catch(e){console.error('Building layer:',e)}}
+/**
+ * Globally available building extrusions driven by the real OpenFreeMap
+ * building source layer (OSM). Not Gaussian splats: those require captures.
+ * Source identity is explicit: style-dependent source IDs are not reliable.
+ */
+function initOpenBuildings(){
+  const map=app.map;
+  if(!map?.isStyleLoaded()||app.fallbackActive)return;
+  const id='earthlens-3d-buildings';
+  if(map.getLayer(id))return;
+  const style=map.getStyle();
+  const layers=style.layers||[];
+  const registered=layers.find(l=>l['source-layer']==='building'&&style.sources?.[l.source]?.type==='vector');
+  let source=registered?.source;
+  if(!source){
+    source='earthlens-osm-planet';
+    if(!map.getSource(source))map.addSource(source,{type:'vector',url:'https://tiles.openfreemap.org/planet'});
+  }
+  const height=['coalesce',['to-number',['get','render_height']],['to-number',['get','height']],12];
+  const minHeight=['coalesce',['to-number',['get','render_min_height']],['to-number',['get','min_height']],0];
+  const before=layers.find(l=>l.type==='symbol'&&l.layout?.['text-field'])?.id
+    ||layers.find(l=>l.type==='symbol')?.id;
+  const extrusions={
+    id,type:'fill-extrusion',source,'source-layer':'building',minzoom:13.3,
+    filter:['!=',['get','hide_3d'],true],
+    paint:{
+      'fill-extrusion-color':['interpolate',['linear'],height,0,'#b5c5b8',18,'#c5cabe',55,'#d9c7aa',135,'#e7c9a5',280,'#f3dcc2'],
+      'fill-extrusion-height':['interpolate',['linear'],['zoom'],13.4,0,14.2,height],
+      'fill-extrusion-base':['interpolate',['linear'],['zoom'],13.4,0,14.2,minHeight],
+      'fill-extrusion-opacity':0.94
+    }
+  };
+  try{
+    map.addLayer(extrusions,before);
+    // Hide duplicate 3D building layers only after the new layer succeeds.
+    for(const layer of layers)if(layer.type==='fill-extrusion'&&layer['source-layer']==='building'&&layer.id!==id){
+      try{map.setLayoutProperty(layer.id,'visibility','none')}catch{}
+    }
+    if(typeof map.setLight==='function')try{
+      map.setLight({anchor:'viewport',color:'#ffffff',intensity:0.48,position:[1.15,215,40]});
+    }catch{}
+    console.info('EarthLens OSM 3D buildings ready',source);
+  }catch(error){console.error('3D building renderer:',error);toast('Здания: проблемы с 3D-слоем, карта остаётся доступной')}
+}
+function updateProjection(){
+  if(app.fallbackActive||!app.map||typeof app.map.setProjection!=='function')return;
+  const z=app.map.getZoom();
+  const globe=z<=6.7;
+  if(globe===app.globeActive)return;
+  try{app.map.setProjection({type:globe?'globe':'mercator'});app.globeActive=globe}
+  catch(error){console.warn('Projection fallback:',error)}
+}
+function updateBuildingStatistics(){
+  if(app.fallbackActive||!app.map?.getLayer?.('earthlens-3d-buildings'))return;
+  const z=app.map.getZoom();
+  if(z<13.7){app.renderedBuildings=0;return}
+  try{
+    const features=app.map.queryRenderedFeatures({layers:['earthlens-3d-buildings']});
+    app.renderedBuildings=features.length;
+    if(z>=15&&features.length>0){
+      $('quality-label').textContent='3D · '+features.length+' ЗДАНИЙ НА ЭКРАНЕ';
+      $('layers-label').textContent='3D-ЗДАНИЯ · OPENSTREETMAP';
+    }
+  }catch(error){console.warn('3D stats:',error)}
 }
 function initTerrain(){const m=app.map;if(!m.isStyleLoaded())return;try{if(!m.getSource('earthlens-elevation'))m.addSource('earthlens-elevation',{type:'raster-dem',tiles:[DEM_URL],tileSize:256,maxzoom:14,encoding:'terrarium',attribution:'Elevation © AWS Terrain Tiles / Mapzen'});m.setTerrain({source:'earthlens-elevation',exaggeration:1.15})}catch(err){console.warn('Terrain unavailable in this browser:',err)}}
-function styleLoaded(){initOpenBuildings();initTerrain()}
+function styleLoaded(){initOpenBuildings();initTerrain();updateProjection()}
 function maybeTilt(){if(app.tiltInProgress||!app.userCamera3d||app.activeScene||app.sceneLoading)return;const m=app.map,z=m.getZoom();if(z>=14.4&&m.getPitch()<35){app.tiltInProgress=true;m.easeTo({pitch:60,duration:620});setTimeout(()=>app.tiltInProgress=false,700)}else if(z<11.6&&m.getPitch()>24){app.tiltInProgress=true;m.easeTo({pitch:0,duration:620});setTimeout(()=>app.tiltInProgress=false,700)}}
-function cameraMoved(){showPosition();storeCamera();updateGuidance();maybeTilt();if(app.sceneLoading){const nearest=locateNearestScene();if(!nearest||nearest.id!==app.sceneLoading.id){app.sceneEpoch++;app.sceneLoading=null;cleanBanner()}return}const chosen=locateNearestScene();if(chosen)void enterScene(chosen)}
-function sampleFly(){const scene=app.scenes[0];if(!scene){toast('Геопривязанных Gaussian-сцен пока нет');return}app.map.flyTo({center:[scene.longitude,scene.latitude],zoom:16.9,pitch:63,bearing:-15,duration:2000});toast('Приблизьте ещё на один шаг: KHR-скан загрузится автоматически')}
+function cameraMoved(){showPosition();storeCamera();updateGuidance();updateProjection();updateBuildingStatistics();maybeTilt();if(app.sceneLoading){const nearest=locateNearestScene();if(!nearest||nearest.id!==app.sceneLoading.id){app.sceneEpoch++;app.sceneLoading=null;cleanBanner()}return}const chosen=locateNearestScene();if(chosen)void enterScene(chosen)}
+function sampleFly(){const scene=app.scenes[0];if(!scene){toast('Геопривязанных Gaussian-сцен пока нет');return}app.map.flyTo({center:[scene.longitude,scene.latitude],zoom:scene.activationZoom+0.15,pitch:63,bearing:-15,duration:2000});toast('Приблизьте ещё на один шаг: KHR-скан загрузится автоматически')}
 function drawScenePins(){
   for(const marker of app.marker)try{marker.remove()}catch{}
   app.marker=[];
@@ -75,17 +137,19 @@ function drawScenePins(){
 }
 function showBuilding(e){if(app.activeScene)return;let feat;try{feat=app.map.queryRenderedFeatures(e.point,{layers:['earthlens-3d-buildings']})[0]}catch{}const p=feat?.properties||{};const h=Number(p.render_height??p.height);const height=Number.isFinite(h)&&h>0?h:null;const levels=Number(p['building:levels']??p.levels);const floors=Number.isFinite(levels)&&levels>0?Math.round(levels):null;const estimate=floors===null&&height!==null?Math.max(1,Math.round(height/3.2)):null;const n=p.name||p['name:en']||p.class||'Точка на карте';const html='<div class="geo-head"><b>'+escapeHtml(n)+'</b><button class="geo-close" type="button" aria-label="Закрыть">×</button></div><div class="geo-grid"><div class="geo-metric"><small>Высота</small><strong>'+(height===null?'—':height.toFixed(1)+' м')+'</strong></div><div class="geo-metric"><small>Этажность</small><strong>'+(floors!==null?floors:estimate!==null?'≈ '+estimate:'—')+'</strong></div></div><p class="geo-note">'+fmt(e.lngLat.lat)+'° / '+fmt(e.lngLat.lng)+'°. '+(estimate!==null?'≈ — расчётная этажность по высоте, не подтверждённая данными. ':'')+'Фотографии ниже относятся к ближайшим точкам, не обязательно к выбранному зданию.</p><div id="photo-strip" class="photo-strip"></div>';const card=$('geo-card');card.innerHTML=html;card.hidden=false;card.querySelector('.geo-close').addEventListener('click',()=>card.hidden=true);void loadNearbyPhotos(e.lngLat.lat,e.lngLat.lng,++app.photoRequest)}
 async function loadNearbyPhotos(lat,lon,token){const el=$('photo-strip');try{const qs=new URLSearchParams({action:'query',generator:'geosearch',ggscoord:lat+'|'+lon,ggsradius:'400',ggslimit:'8',ggsnamespace:'6',prop:'imageinfo',iiprop:'url',iiurlwidth:'160',format:'json',origin:'*'});const resp=await fetch('https://commons.wikimedia.org/w/api.php?'+qs,{signal:AbortSignal.timeout(8500)});if(!resp.ok)throw Error(resp.status);const data=await resp.json();if(token!==app.photoRequest)return;const photos=Object.values(data.query?.pages||{}).map(item=>({title:item.title?.replace(/^File:/,'')||'Фото',url:item.imageinfo?.[0]?.descriptionurl,img:item.imageinfo?.[0]?.thumburl})).filter(photo=>photo.url?.startsWith('https://')&&photo.img?.startsWith('https://'));if(!photos.length){el.innerHTML='<span class="geo-note">Фото рядом нет</span>';return}for(const photo of photos){const a=document.createElement('a');a.href=photo.url;a.target='_blank';a.rel='noopener noreferrer';const img=document.createElement('img');img.loading='lazy';img.alt=photo.title;img.src=photo.img;const label=document.createElement('span');label.textContent=photo.title.slice(0,22);a.append(img,label);el.append(a)}}catch(err){if(token===app.photoRequest)el.innerHTML='<span class="geo-note">Фотографии временно недоступны</span>'}}
-async function readScenes(){try{const r=await fetch('./scenes.json',{cache:'no-cache'});if(!r.ok)throw Error('scenes.json '+r.status);const data=await r.json();app.scenes=(data.scenes||[]).filter(s=>s&&typeof s.id==='string'&&Number.isFinite(s.latitude)&&Number.isFinite(s.longitude)&&Math.abs(s.latitude)<=85&&Math.abs(s.longitude)<=180&&Number.isFinite(s.activationZoom)&&typeof s.url==='string'&&s.url.startsWith('https://')&&['khr-3dtiles','raw-splat'].includes(s.type));console.info('Georeferenced 3D scene catalog:',app.scenes.length);drawScenePins();cameraMoved()}catch(err){console.warn('3D scene catalog is unavailable:',err);toast('Каталог Gaussian-сцен недоступен; геометрическая карта работает')}}
+async function readScenes(){try{const r=await fetch('./scenes.json',{cache:'no-cache'});if(!r.ok)throw Error('scenes.json '+r.status);const data=await r.json();app.scenes=(data.scenes||[]).filter(s=>s&&typeof s.id==='string'&&Number.isFinite(s.latitude)&&Number.isFinite(s.longitude)&&Math.abs(s.latitude)<=85&&Math.abs(s.longitude)<=180&&Number.isFinite(s.activationZoom)&&((s.type==='cesium-ion-khr'&&Number.isInteger(s.assetId))||(typeof s.url==='string'&&s.url.startsWith('https://')&&['khr-3dtiles','raw-splat'].includes(s.type))));console.info('Georeferenced 3D scene catalog:',app.scenes.length);drawScenePins();cameraMoved()}catch(err){console.warn('3D scene catalog is unavailable:',err);toast('Каталог Gaussian-сцен недоступен; геометрическая карта работает')}}
 async function getCesium(){if(app.cesium)return app.cesium;if(window.Cesium){app.cesium=window.Cesium;return app.cesium}if(!window.__earthlensCesiumPromise){window.__earthlensCesiumPromise=new Promise((resolve,reject)=>{const stylesheet=document.createElement('link');stylesheet.rel='stylesheet';stylesheet.href=CESIUM_CSS;document.head.append(stylesheet);const script=document.createElement('script');script.src=CESIUM_JS;script.async=true;script.onload=()=>window.Cesium?resolve(window.Cesium):reject(Error('Cesium global missing'));script.onerror=()=>reject(Error('Cesium script unavailable'));document.head.append(script)}).catch(e=>{window.__earthlensCesiumPromise=null;throw e})}app.cesium=await window.__earthlensCesiumPromise;return app.cesium}
 function banner(scene,title,subtitle){$('splat-banner').hidden=false;$('scene-title').textContent=title;$('scene-description').textContent=subtitle||scene.name}
 function cleanBanner(){$('splat-banner').hidden=true;$('app').classList.remove('loading-splat','in-splat')}
 async function enterScene(scene){if(app.activeScene||app.sceneLoading)return;app.sceneLoading=scene;const epoch=++app.sceneEpoch;$('app').classList.add('loading-splat');banner(scene,'Подключение Gaussian Splatting…','Готовим высокодетальную 3D-сцену; карта остаётся доступной.');
-try{if(scene.type==='khr-3dtiles')await loadKhrScene(scene,epoch);else if(scene.type==='raw-splat')await loadRawScene(scene,epoch)}catch(err){console.error('Gaussian scene error:',err);if(epoch===app.sceneEpoch){toast('3D-сцена недоступна: остаётся обычная объёмная карта.');$('guidance').textContent='Для этой точки источник Gaussian-сцены сейчас недоступен; показаны реальные геометрические здания.';cleanBanner()}}finally{if(app.sceneLoading?.id===scene.id)app.sceneLoading=null}}
+try{if(scene.type==='khr-3dtiles'||scene.type==='cesium-ion-khr')await loadKhrScene(scene,epoch);else if(scene.type==='raw-splat')await loadRawScene(scene,epoch)}catch(err){console.error('Gaussian scene error:',err);if(epoch===app.sceneEpoch){toast('3D-сцена недоступна: остаётся обычная объёмная карта.');$('guidance').textContent='Для этой точки источник Gaussian-сцены сейчас недоступен; показаны реальные геометрические здания.';cleanBanner()}}finally{if(app.sceneLoading?.id===scene.id)app.sceneLoading=null}}
 async function loadKhrScene(scene,epoch){const C=await getCesium();if(epoch!==app.sceneEpoch)return;const stage=$('cesium-scene');let viewer=null;try{
 const baseLayer=new C.ImageryLayer(new C.UrlTemplateImageryProvider({url:'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',maximumLevel:19,credit:new C.Credit('© OpenStreetMap contributors')}));
 viewer=new C.Viewer(stage,{animation:false,baseLayerPicker:false,baseLayer,terrainProvider:new C.EllipsoidTerrainProvider(),fullscreenButton:false,vrButton:false,geocoder:false,homeButton:false,infoBox:false,navigationHelpButton:false,sceneModePicker:false,selectionIndicator:false,timeline:false,shadows:false,shouldAnimate:false});
 viewer.scene.globe.depthTestAgainstTerrain=true;
-const pending=C.Cesium3DTileset.fromUrl(scene.url);
+const pending=scene.type==='cesium-ion-khr'
+ ? C.Cesium3DTileset.fromIonAssetId(scene.assetId)
+ : C.Cesium3DTileset.fromUrl(scene.url);
 const tileset=await Promise.race([pending,new Promise((_,reject)=>setTimeout(()=>reject(Error('3D Tiles timeout')),20000))]);
 if(epoch!==app.sceneEpoch){viewer.destroy();return}viewer.scene.primitives.add(tileset);
 viewer.camera.setView({destination:C.Cartesian3.fromDegrees(scene.longitude,scene.latitude,190),orientation:{heading:C.Math.toRadians(0),pitch:C.Math.toRadians(-70),roll:0}});
@@ -93,7 +157,7 @@ stage.classList.add('active');stage.setAttribute('aria-hidden','false');
 app.viewer=viewer;app.activeScene=scene;$('app').classList.remove('loading-splat');$('app').classList.add('in-splat');$('geo-card').hidden=true;
 banner(scene,'KHR Gaussian Splatting · LIVE',scene.name+' · 3D Tiles LOD');
 setMode('KHR 3DGS','KHR_gaussian_splatting · 3D TILES');
-try{await viewer.zoomTo(tileset,new C.HeadingPitchRange(C.Math.toRadians(0),C.Math.toRadians(-34),24))}catch(e){console.warn('Zoom to tileset:',e)}
+try{tileset.maximumScreenSpaceError=scene.maximumScreenSpaceError||16;await viewer.zoomTo(tileset,new C.HeadingPitchRange(C.Math.toRadians(0),C.Math.toRadians(-32),scene.cameraRangeMeters||28))}catch(e){console.warn('Zoom to tileset:',e)}
 viewer.camera.moveEnd.addEventListener(()=>{if(!app.activeScene||app.activeScene.id!==scene.id)return;const h=viewer.camera.positionCartographic?.height||0;if(h>scene.returnHeightMeters)exitScene()});
 toast('Фотосцена из 3D Tiles загрузилась автоматически');
 }catch(err){if(viewer&&!viewer.isDestroyed())viewer.destroy();stage.classList.remove('active');stage.setAttribute('aria-hidden','true');throw err}}
@@ -163,10 +227,16 @@ async function activateRasterFallback(reason){
  };
  raster.on('moveend',cameraMoved);
  raster.on('click',e=>showBuilding({lngLat:{lat:e.latlng.lat,lng:e.latlng.lng},point:null}));
- $('tilt').textContent='2D';
- $('layers-label').textContent='OSM RASTER · РЕЗЕРВ';
- $('guidance').textContent='Резервная карта OpenStreetMap активна. Она работает без WebGL, но объёмные здания доступны только в основном режиме.';
- setMode('2D RASTER','РЕЗЕРВНЫЙ СЛОЙ');
+ $('tilt').textContent='2.5D';
+ $('layers-label').textContent='OSM + OPENFREEMAP · 2.5D';
+ $('guidance').textContent='Приближайте карту: здания поднимаются объёмными блоками даже без WebGL. Фотографические сканы требуют WebGL.';
+ setMode('CANVAS 2.5D','OSM · ОБЪЁМНЫЕ ЗДАНИЯ');
+ // OpenFreeMap vector tiles are decoded into shaded building volumes on Canvas2D.
+ try{
+   app.canvasBuildings=attachCanvasBuildingLayer(raster,{
+     onData:count=>{if(count>0&&app.fallbackActive){app.renderedBuildings=count;$('quality-label').textContent='CANVAS · '+count+' ЗДАНИЙ';}}
+   });
+ }catch(error){console.warn('Canvas building extrusion unavailable:',error);}
  showPosition();storeCamera();
  drawScenePins();
  if(!app.sceneDataLoaded){app.sceneDataLoaded=true;void readScenes()}
@@ -190,9 +260,10 @@ function boot(){
  app.bootTimer=setTimeout(()=>{if(!app.mapReady)void activateRasterFallback('Map style did not become ready within 12 seconds')},12000);
  if(!maplibregl.supported()){void activateRasterFallback('WebGL2 unavailable');return}
  try{
-   const map=new maplibregl.Map({container:'map',style:MAP_STYLE,...parseHash(),maxPitch:85,antialias:true,attributionControl:false,hash:false});
+   const map=new maplibregl.Map({container:'map',style:MAP_STYLE,...parseHash(),maxPitch:85,canvasContextAttributes:{antialias:true,preserveDrawingBuffer:false},attributionControl:false,hash:false});
    app.map=map;
    map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
+   if(typeof maplibregl.GlobeControl==='function')map.addControl(new maplibregl.GlobeControl(),'top-right');
    map.addControl(new maplibregl.ScaleControl({unit:'metric'}),'bottom-left');
    map.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-right');
    map.on('load',onMapReady);
