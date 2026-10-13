@@ -3,6 +3,7 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'leaflet/dist/leaflet.css';
 import {attachCanvasBuildingLayer} from './fallback-3d.js';
+import {budgetForScene} from './scene-resource-budget.mjs';
 // MapLibre v6 uses a separate worker. Vite must bundle it via ?worker&url.
 maplibregl.setWorkerUrl(maplibreWorkerUrl);
 const $ = id => document.getElementById(id);
@@ -185,6 +186,7 @@ async function enterScene(scene){
   }
 }
 async function loadKhrScene(scene,epoch){
+  const budget=budgetForScene(scene);
   const C=await getCesium();
   if(epoch!==app.sceneEpoch)return;
   const stage=$('cesium-scene');
@@ -193,7 +195,7 @@ async function loadKhrScene(scene,epoch){
     // OSM imagery gives orientation during asynchronous photogrammetric LOD streaming.
     const imagery=new C.ImageryLayer(new C.UrlTemplateImageryProvider({
       url:'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      maximumLevel:19,
+      maximumLevel:budget.maxImageryLevel,
       credit:new C.Credit('© OpenStreetMap contributors')
     }));
     viewer=new C.Viewer(stage,{
@@ -203,6 +205,10 @@ async function loadKhrScene(scene,epoch){
       infoBox:false,navigationHelpButton:false,sceneModePicker:false,
       selectionIndicator:false,timeline:false,shadows:false,shouldAnimate:false
     });
+    // Keep raster and globe LOD from exhausting memory while PLATEAU streams.
+    viewer.resolutionScale=budget.resolutionScale;
+    viewer.scene.globe.tileCacheSize=budget.globeTileCacheSize;
+    viewer.scene.globe.maximumScreenSpaceError=budget.globeScreenSpaceError;
     const request=scene.type==='cesium-ion-khr'
       ? C.Cesium3DTileset.fromIonAssetId(scene.assetId)
       : C.Cesium3DTileset.fromUrl(scene.url);
@@ -211,13 +217,15 @@ async function loadKhrScene(scene,epoch){
     ]);
     if(epoch!==app.sceneEpoch){viewer.destroy();return}
     viewer.scene.primitives.add(tileset);
-    tileset.maximumScreenSpaceError=scene.maximumScreenSpaceError||16;
+    tileset.cacheBytes=budget.cacheBytes;
+    tileset.maximumCacheOverflowBytes=budget.maximumCacheOverflowBytes;
+    tileset.maximumScreenSpaceError=budget.maximumScreenSpaceError;
     if(scene.orthoUrl){
       // PLATEAU orthophotography complements actual 3D city meshes.
       // OSM remains the underlying imagery if the imagery service lacks coverage.
       try{
         const ortho=new C.UrlTemplateImageryProvider({
-          url:scene.orthoUrl,maximumLevel:19,
+          url:scene.orthoUrl,maximumLevel:budget.maxImageryLevel,
           credit:new C.Credit(scene.orthoAttribution||'© Project PLATEAU / MLIT Japan')
         });
         viewer.imageryLayers.addImageryProvider(ortho);
