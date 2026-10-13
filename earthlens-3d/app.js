@@ -239,7 +239,7 @@ async function loadKhrScene(scene,epoch){
     });
     if(!isCity){
       try{await viewer.zoomTo(tileset,new C.HeadingPitchRange(
-        C.Math.toRadians(0),C.Math.toRadians(-32),scene.cameraRangeMeters||35
+        C.Math.toRadians(scene.cameraHeadingDegrees??0),C.Math.toRadians(scene.cameraPitchDegrees??-32),scene.cameraRangeMeters||80
       ))}catch(error){console.warn('Zoom to Gaussian scene:',error)}
     }
     if(epoch!==app.sceneEpoch){viewer.destroy();return}
