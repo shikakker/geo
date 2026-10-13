@@ -134,3 +134,23 @@ test('PLATEAU Japan LOD2 3D Tiles do not masquerade as Gaussian Splats',async()=
  assert.match(js,/failedScenes\.set\(scene\.id/);
  assert.match(js,/app\.sceneCooldownUntil/);
 });
+
+test('PLATEAU city layers apply finite memory and imagery budgets before rendering',async()=>{
+ let budgetForScene;
+ try{({budgetForScene}=await import('../scene-resource-budget.mjs'))}catch{}
+ assert.equal(typeof budgetForScene,'function','Scene resource-budget helper is required');
+ const city=budgetForScene({type:'3dtiles-model'});
+ assert.ok(city.cacheBytes>0&&city.cacheBytes<=96*1024*1024);
+ assert.ok(city.maximumCacheOverflowBytes>=0&&city.maximumCacheOverflowBytes<=64*1024*1024);
+ assert.ok(city.maxImageryLevel<=15);
+ assert.ok(city.globeTileCacheSize<=48);
+ assert.ok(city.globeScreenSpaceError>=8);
+ assert.ok(city.maximumScreenSpaceError>=32);
+ assert.ok(city.resolutionScale>0&&city.resolutionScale<=0.75);
+ const app=await readFile(new URL('app.js',root),'utf8');
+ assert.match(app,/import\s*\{\s*budgetForScene\s*\}\s*from\s*['"]\.\/scene-resource-budget\.mjs['"]/);
+ assert.match(app,/tileset\.cacheBytes\s*=\s*budget\.cacheBytes/);
+ assert.match(app,/tileset\.maximumCacheOverflowBytes\s*=\s*budget\.maximumCacheOverflowBytes/);
+ assert.match(app,/viewer\.scene\.globe\.maximumScreenSpaceError\s*=\s*budget\.globeScreenSpaceError/);
+ assert.match(app,/viewer\.resolutionScale\s*=\s*budget\.resolutionScale/);
+});
