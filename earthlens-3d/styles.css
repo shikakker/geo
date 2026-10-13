@@ -7,3 +7,35 @@
 
 /* Missing raster tiles must be a neutral geographic canvas, never dark green empty squares. */
 #map.leaflet-container{background:#dce4d7!important}
+
+/* EarthLens v0.3: world-first 3D navigation and volume readability */
+.city-dock{position:absolute;z-index:13;bottom:69px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;max-width:calc(100vw - 40px);padding:8px;border-radius:11px;overflow-x:auto;scrollbar-width:none;white-space:nowrap}
+.city-dock::-webkit-scrollbar{display:none}
+.city-dock-label{font-size:9px;font-weight:850;letter-spacing:.12em;color:#a4c8ad;padding:0 9px;flex:none}
+.city-go{display:inline-flex;align-items:center;justify-content:center;flex:none;background:#2c4737;border:1px solid #456b50;border-radius:6px;color:#ebf9e9;font-size:10px;font-weight:740;min-height:33px;padding:0 11px}
+.city-go:hover,.city-go:focus-visible{background:#c0f0c6;color:#203929;border-color:#bbffca}
+.city-go.scan-go{background:#174d38;border-color:#80d1a0;color:#c2f8d4}
+.city-go.scan-go:hover{background:#bbefc7;color:#173323}
+.focus-dismiss{position:absolute;right:11px;top:10px;width:24px;height:24px;display:grid;place-items:center;background:#1e3a2a;color:#ceeacf;font-size:19px;border:1px solid #658b70;border-radius:5px;cursor:pointer}
+.focus-card{width:min(305px,calc(100vw - 40px));padding:17px}
+.focus-card strong{font-size:18px;margin-top:8px}
+.focus-card p{line-height:1.5;font-size:10.5px;margin:8px 0 12px}
+.focus-card .kicker{font-size:8px}
+.app.focus-dismissed .focus-card{display:none}
+.earthlens-25d-buildings{mix-blend-mode:normal;image-rendering:auto;will-change:transform}
+.app.in-splat .city-dock{display:none}
+.geo-card:not([hidden]) ~ .city-dock{display:none}
+@media(max-width:850px){
+  .city-dock{bottom:54px;left:9px;right:9px;max-width:none;transform:none;padding:6px}
+  .city-dock-label{padding:0 4px;font-size:8px}
+  .city-go{font-size:10px;min-height:31px;padding:0 9px}
+  .focus-card{max-width:255px;padding:12px}
+  .focus-card strong{font-size:15px}
+  .focus-card p{font-size:10px;line-height:1.4}
+  .focus-dismiss{right:7px;top:6px;width:22px;height:22px}
+}
+@media(max-width:540px){
+  .city-dock{left:6px;right:6px}
+  .focus-card{width:225px}
+  .focus-card .kicker{letter-spacing:.08em}
+}
