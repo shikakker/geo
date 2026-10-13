@@ -15,6 +15,22 @@ The original map could render as a blank screen because MapLibre GL JS 6 has no 
 - Important: OSM raster tile server is a fair-use fallback only, **not** an unlimited tile CDN; see https://operations.osmfoundation.org/policies/tiles/. OpenFreeMap is primary and states no map-view limits, but no SLA.
 
 
+## October 2026: genuine 3D globe, global buildings and open real-world city models
+
+EarthLens **now starts over Midtown Manhattan with 3D WebGL2 buildings**, not a flat 2D map.
+The MapLibre GL JS v6 startup bug was caused by calling removed \`maplibregl.supported()\`; it has been replaced by an explicit WebGL2 capability probe. The worker is bundled locally by Vite. Actual Chromium smoke results: **3,476 rendered New York buildings desktop, 1,164 buildings mobile** at startup, MapLibre WebGL2 active, 0 page JavaScript errors.
+
+- Global OSM vector building footprints and public elevation via OpenFreeMap and AWS Terrarium DEM; extrusion height is data-based where height exists, heuristic otherwise.
+- Zoomed-out world is a globe. Moving into a city enables projected and shaded **real geometric 3D buildings**. WebGL2 absent: locally bundled Leaflet with Canvas2D pseudo-3D volume extraction from OpenFreeMap PBF building tiles, not GPU-dependent.
+- Photoreal **Gaussian splats** only at actual captured sites: public Cesium 110M-splat Microsoft Redmond campus via evaluation ion asset **4547222**; third-party KHR Gaussian Wilhelmina Utrecht 3D Tiles example.
+- **Japanese Project PLATEAU** official open government 3D CityGML-derived **3D Tiles, LOD2**: Chiyoda, Tokyo, and a nationwide municipality composite catalog. These are high-fidelity *geometric/possibly textured city models*, **NOT Gaussian splats**. Street-scale image quality varies by dataset and municipal coverage. Reference: https://docs.plateauview.mlit.go.jp/datasets/3d-tiles/ . The official 2023 PLATEAU orthophoto tiles supplement Tokyo where imagery is available.
+- Exact official Tokyo URL: https://api.plateauview.mlit.go.jp/datacatalog/3dtiles/13101-bldg-lod2-latest/tileset.json
+- Nationwide *participating Japan cities* composite: https://api.plateauview.mlit.go.jp/datacatalog/3dtiles/all-bldg-maxlod2-latest/tileset.json
+- A georegistered scene is loaded automatically when camera zoom and geo coordinates match the manifest. User uploads are not needed. Detail switches off gracefully if provider is unavailable. Camera exit has a 30s cooldown to avoid accidental reload loops.
+- Screenshot tests run in real headless Chromium (desktop/mobile). A separate scene probe checks Tokyo PLATEAU and Redmond Gaussian and logs actual network responses.
+
+**Data costs/licensing:** open-source renderer code does not equal unlimited dataset hosting. PLATEAU is an experimental Japanese government data service with no guaranteed SLA, attribution requirements and variable coverage. Cesium public evaluation asset and third-party sample URLs can enforce access/usage limits. Do not claim these models cover every building with textures or Gaussian data.
+
 ## Progressive zoom
 
 1. MapLibre uses OpenFreeMap vector tiles as global basemap.
