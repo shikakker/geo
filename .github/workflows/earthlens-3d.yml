@@ -1,0 +1,49 @@
+name: EarthLens 3D - Build and Smoke Tests
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'earthlens-3d/**'
+      - '.github/workflows/earthlens-3d.yml'
+  pull_request:
+    paths:
+      - 'earthlens-3d/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: earthlens-3d
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Syntax and invariant tests
+        run: npm run check
+      - name: Production bundle
+        run: npm run build
+      - name: Verify generated map assets
+        run: |
+          test -f dist/index.html
+          test -f dist/scenes.json
+          test -f dist/open-source-stack.json
+          test -n "$(find dist/assets -type f -name '*.js' -print -quit)"
+      - name: Save static build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: earthlens-3d-dist
+          path: earthlens-3d/dist
+          if-no-files-found: error
