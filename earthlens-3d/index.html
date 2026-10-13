@@ -22,9 +22,10 @@
 </header>
 <div class="focus-card glass" id="focus-card">
   <div class="kicker">ТЕХНОЛОГИЯ · KHR GAUSSIAN SPLATTING</div>
-  <strong>Реальная объёмная карта</strong>
-  <p id="guidance">Приближайте карту: здания становятся объёмными. На отмеченной точке доступна демонстрационная фотосцена.</p>
-  <div class="focus-actions"><button id="sample-fly" class="sample-btn" type="button">◎ К 3D-скану</button><span id="quality-label">ГЕОМЕТРИЯ · OSM</span></div>
+  <button type="button" id="focus-dismiss" class="focus-dismiss" title="Скрыть подсказку" aria-label="Скрыть подсказку">×</button>
+  <strong>Трёхмерная Земля</strong>
+  <p id="guidance">Масштабируйте, наклоняйте и вращайте карту. Геометрические 3D-здания появляются автоматически; Gaussian-сцены — где есть реальные сканы.</p>
+  <div class="focus-actions"><button id="sample-fly" class="sample-btn" type="button">✳ Gaussian-сцены</button><span id="quality-label">ГЕОМЕТРИЯ · OSM</span></div>
 </div>
 <div class="corner-toolbar glass" aria-label="Управление камерой">
 <button id="style-cycle" title="Переключить бесплатный слой карты" aria-label="Переключить картографический стиль">СЛОЙ</button>
@@ -38,6 +39,15 @@
   <div class="splat-message"><b id="scene-title">3D-скан загружается</b><span id="scene-description">Автоматическая подгрузка реальной фотосцены</span></div>
   <button id="exit-splat" type="button" title="Вернуться на общую карту">К КАРТЕ ↗</button>
 </div>
+<nav class="city-dock glass" id="city-dock" aria-label="Места с объёмной картой">
+  <span class="city-dock-label">3D МЕСТА</span>
+  <button type="button" class="city-go" data-lon="-73.9853" data-lat="40.7487" data-zoom="16.45" title="3D-небоскрёбы Нью-Йорка">Нью-Йорк</button>
+  <button type="button" class="city-go" data-lon="13.405" data-lat="52.52" data-zoom="16.55">Берлин</button>
+  <button type="button" class="city-go" data-lon="139.702" data-lat="35.659" data-zoom="16.55">Токио</button>
+  <button type="button" class="city-go" data-lon="55.2744" data-lat="25.1972" data-zoom="16.55">Дубай</button>
+  <button type="button" class="city-go scan-go" data-scene="redmond-campus-khr" title="Фотореалистичный KHR Gaussian Splat">✳ Редмонд</button>
+  <button type="button" class="city-go scan-go" data-scene="wilhelmina-khr" title="Фотореалистичный KHR Gaussian Splat">✳ Утрехт</button>
+</nav>
 <footer class="status glass">
 <span class="status-geo"><i class="green-dot"></i><span id="coords">52.08742°N · 5.13973°E</span></span>
 <span class="separator"></span><span id="zoom-label">ZOOM 14.5</span>
