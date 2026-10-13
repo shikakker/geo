@@ -212,6 +212,17 @@ async function loadKhrScene(scene,epoch){
     if(epoch!==app.sceneEpoch){viewer.destroy();return}
     viewer.scene.primitives.add(tileset);
     tileset.maximumScreenSpaceError=scene.maximumScreenSpaceError||16;
+    if(scene.orthoUrl){
+      // PLATEAU orthophotography complements actual 3D city meshes.
+      // OSM remains the underlying imagery if the imagery service lacks coverage.
+      try{
+        const ortho=new C.UrlTemplateImageryProvider({
+          url:scene.orthoUrl,maximumLevel:19,
+          credit:new C.Credit(scene.orthoAttribution||'© Project PLATEAU / MLIT Japan')
+        });
+        viewer.imageryLayers.addImageryProvider(ortho);
+      }catch(error){console.warn('Optional PLATEAU orthophotography not available:',error)}
+    }
     const isCity=scene.type==='3dtiles-model'||scene.type==='3dtiles-region';
     // Country-wide tilesets have huge bounding spheres. Zoom to the current
     // neighborhood instead; otherwise Cesium would zoom to the entire country.
@@ -222,8 +233,8 @@ async function loadKhrScene(scene,epoch){
         scene.cameraHeightMeters||(isCity?550:190)
       ),
       orientation:{
-        heading:C.Math.toRadians(345),
-        pitch:C.Math.toRadians(-55),roll:0
+        heading:C.Math.toRadians(isCity?0:345),
+        pitch:C.Math.toRadians(isCity?-73:-55),roll:0
       }
     });
     if(!isCity){
