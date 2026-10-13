@@ -283,6 +283,7 @@ function boot(){
    map.addControl(new maplibregl.ScaleControl({unit:'metric'}),'bottom-left');
    map.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-right');
    map.on('load',onMapReady);
+   map.on('idle',updateBuildingStatistics);
    map.on('style.load',()=>{if(!app.fallbackActive)styleLoaded()});
    map.on('move',showPosition);
    map.on('moveend',cameraMoved);
@@ -297,4 +298,6 @@ function boot(){
    });
  }catch(err){console.error('MapLibre init:',err);void activateRasterFallback(err.message||'WebGL map initialization failed')}
 }
+// Inspectable, read-only diagnostics used by real Chromium rendering tests.
+window.__earthlensDiagnostics=()=>({engine:app.fallbackActive?'canvas-2.5d':app.mapReady?'webgl-3d':'initializing',buildings:app.renderedBuildings,zoom:app.map?.getZoom?.()??null,sceneCount:app.scenes.length,activeScene:app.activeScene?.id||null,globe:app.globeActive});
 try{boot()}catch(err){console.error(err);void activateRasterFallback(err.message||'Unexpected map bootstrap failure')}
