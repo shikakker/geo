@@ -45,3 +45,14 @@
 
 /* Keep the Cesium GL canvas composited during warmup without hiding the live map. */
 .cesium-stage.warming{visibility:visible;opacity:0.015;pointer-events:none}
+
+/* Native Cesium 3D Tiles Gaussian LOD controls; hidden on the ordinary map */
+.splat-banner{flex-wrap:wrap;max-width:calc(100vw - 22px)}
+.lod-controls{display:flex;flex:1 0 100%;align-items:center;flex-wrap:wrap;gap:5px;padding-top:10px;border-top:1px solid rgba(192,234,201,.19)}
+.lod-controls[hidden],.lod-debug[hidden],.city-go[hidden]{display:none!important}
+.lod-title{font-size:9px;font-weight:850;letter-spacing:.1em;color:#b6e9c4;margin-right:5px}
+.lod-button,.lod-debug{min-height:27px;padding:5px 8px;border:1px solid #51795e;border-radius:6px;background:#264732;color:#d9f0db;font-size:9px;font-weight:750}
+.lod-button:hover,.lod-button.is-active,.lod-debug[aria-pressed="true"]{background:#c1ebc9;color:#203b28;border-color:#c1ebc9}
+.lod-metric{font-size:10px;font-variant-numeric:tabular-nums;color:#f0f9ef;white-space:nowrap;margin-left:3px}
+.lod-state{font-size:9px;color:#9fc6aa;max-width:100%;line-height:1.3}
+@media(max-width:560px){.splat-banner{align-items:flex-start;gap:7px;padding:10px}.splat-pulse{font-size:21px}.splat-banner button#exit-splat{padding:7px;font-size:9px}.lod-controls{gap:4px}.lod-title{font-size:8px}.lod-button{padding:5px;font-size:8px}.lod-state{flex-basis:100%}}

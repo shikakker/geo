@@ -33,10 +33,11 @@
       "verifiedFrom": "Cesium tutorial gives asset ID 4547222 and camera [-122.141186, 47.644605, 170.48] at Microsoft Redmond Campus. Captured with 20,169 images; area approximately 3.7 km2.",
       "cameraHeadingDegrees": 100,
       "cameraPitchDegrees": -25,
-      "cameraHeightMeters": 170,
+      "cameraHeightMeters": 170.48,
       "enabled": false,
-      "availability": "blocked: Cesium ion returned HTTP 401 in public Chromium tests; requires an authorized token; intentionally excluded from automatic scene list",
-      "lastChecked": "2026-10-13"
+      "availability": "Optional Cesium ion 3DGS LOD tutorial: enabled by build-time VITE_CESIUM_ION_PUBLIC_TOKEN only; requires an authorized Cesium ion read token. Previously returned HTTP 401 without one. Not guaranteed public/unlimited.",
+      "lastChecked": "2026-10-14",
+      "enableWithIonToken": true
     },
     {
       "id": "tokyo-chiyoda-plateau",
@@ -79,5 +80,5 @@
       "verifiedFrom": "Official Japan MLIT documentation defines composite nationwide 3D Tiles API and maxlod2/latest selectors. Coverage and available LOD differ among municipalities."
     }
   ],
-  "description": "Only enabled real 3D sources are offered automatically. Redmond ion sample is retained as disabled provenance due to HTTP 401; OSM geometric 3D remains global."
+  "description": "OSM buildings render globally. Gaussian LOD via CesiumJS: working open Utrecht KHR source, optional Cesium ion 4547222 Redmond tutorial when read-authorized token is configured, and PLATEAU 3D tiles for Japan."
 }

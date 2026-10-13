@@ -46,6 +46,12 @@ try{
   assert.equal(state.cesiumActive,true,'A real 3D detail scene must become visible');
   assert.equal(state.diagnostic.activeScene,sceneId,'The correct georeferenced scene must be selected');
   assert.ok(state.diagnostic.sceneVisibleTiles>0,'At least one actual model tile must be rendered');
+  await page.locator('[data-lod="quality"]').click();
+  await page.waitForTimeout(300);
+  const lod=await page.evaluate(()=>window.__earthlensDiagnostics?.()?.lodSSE);
+  assert.equal(lod,8,'Cesium LOD quality button must change maximumScreenSpaceError to 8 px');
+  await page.locator('[data-lod="balanced"]').click();
+  assert.equal(await page.evaluate(()=>window.__earthlensDiagnostics?.()?.lodSSE),16,'Balance must restore SSE 16');
   console.log('Scene center pixel luma variation',sceneId,imageLumaStddev.toFixed(2));
   assert.ok(imageLumaStddev>=14,'A real 3D model must be visually visible, not a blank tinted Cesium viewport (stddev='+imageLumaStddev.toFixed(2)+')');
 }finally{await browser.close()}

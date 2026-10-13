@@ -38,6 +38,16 @@
   <span class="splat-pulse">✳</span>
   <div class="splat-message"><b id="scene-title">3D-скан загружается</b><span id="scene-description">Автоматическая подгрузка реальной фотосцены</span></div>
   <button id="exit-splat" type="button" title="Вернуться на общую карту">К КАРТЕ ↗</button>
+  <div id="lod-controls" class="lod-controls" role="group" aria-label="Уровень детализации Cesium 3D Tiles" hidden>
+    <span class="lod-title">3DGS LOD</span>
+    <button type="button" class="lod-button" data-lod="auto" aria-pressed="true">AUTO</button>
+    <button type="button" class="lod-button" data-lod="performance" aria-pressed="false">FAST</button>
+    <button type="button" class="lod-button" data-lod="balanced" aria-pressed="false">BALANCE</button>
+    <button type="button" class="lod-button" data-lod="quality" aria-pressed="false">DETAIL</button>
+    <span id="lod-sse" class="lod-metric">SSE 16px</span>
+    <span id="lod-state" class="lod-state" aria-live="polite">3D Tiles</span>
+    <button id="lod-debug" type="button" class="lod-debug" aria-pressed="false" title="Показать границы 3D-плиток" hidden>ГРАНИЦЫ</button>
+  </div>
 </div>
 <nav class="city-dock glass" id="city-dock" aria-label="Места с объёмной картой">
   <span class="city-dock-label">3D МЕСТА</span>
@@ -46,6 +56,7 @@
   <button type="button" class="city-go" data-lon="139.7671" data-lat="35.6812" data-zoom="16.0" title="PLATEAU LOD2: текстурированные 3D-здания района Тиёда">3D Токио</button>
   <button type="button" class="city-go" data-lon="55.2744" data-lat="25.1972" data-zoom="16.55">Дубай</button>
   <button type="button" class="city-go" data-scene="tokyo-chiyoda-plateau" title="PLATEAU 3D Tiles LOD2, реальные модели Японии">▰ PLATEAU</button>
+  <button type="button" class="city-go scan-go" id="redmond-go" data-scene="redmond-campus-khr" title="Cesium ion: 110 млн Gaussian Splats с LOD; доступ по разрешённому токену" hidden>✳ Cesium LOD</button>
   <button type="button" class="city-go scan-go" data-scene="wilhelmina-khr" title="Фотореалистичный KHR Gaussian Splat">✳ Утрехт</button>
 </nav>
 <footer class="status glass">

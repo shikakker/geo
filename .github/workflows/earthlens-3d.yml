@@ -35,6 +35,8 @@ jobs:
         run: npm run check
       - name: Production bundle
         run: npm run build
+        env:
+          VITE_CESIUM_ION_PUBLIC_TOKEN: ${{ vars.CESIUM_ION_PUBLIC_TOKEN }}
       - name: Verify generated map assets
         run: |
           test -f dist/index.html
@@ -58,6 +60,11 @@ jobs:
         run: node tests/browser-smoke.mjs
       - name: Probe Tokyo PLATEAU 3D Tiles and log provider errors
         run: node tests/scene-smoke.mjs
+      - name: Probe optional Cesium ion Redmond LOD if authorized token configured
+        if: ${{ vars.CESIUM_ION_PUBLIC_TOKEN != '' }}
+        run: node tests/scene-smoke.mjs
+        env:
+          EARTHLENS_SCENE_ID: redmond-campus-khr
       - name: Probe Utrecht KHR Gaussian 3D Tiles and log provider responses
         run: node tests/scene-smoke.mjs
         env:

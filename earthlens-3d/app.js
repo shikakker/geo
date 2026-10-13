@@ -4,6 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import 'leaflet/dist/leaflet.css';
 import {attachCanvasBuildingLayer} from './fallback-3d.js';
 import {budgetForScene} from './scene-resource-budget.mjs';
+import {LOD_PRESETS,isLodMode,lodSSE,applyLod,isSceneEnabled} from './cesium-lod.js';
 // MapLibre v6 uses a separate worker. Vite must bundle it via ?worker&url.
 maplibregl.setWorkerUrl(maplibreWorkerUrl);
 const $ = id => document.getElementById(id);
@@ -16,12 +17,14 @@ const BASE_STYLES=[
 ];
 const MAP_STYLE=BASE_STYLES[0].url;
 const DEM_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+const ION_PUBLIC_TOKEN = String(import.meta.env.VITE_CESIUM_ION_PUBLIC_TOKEN || '').trim();
+const CESIUM_WORLD_TERRAIN = import.meta.env.VITE_CESIUM_WORLD_TERRAIN === 'true';
 const CESIUM_VERSION = '1.141';
 const CESIUM_JS = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VERSION + '/Build/Cesium/Cesium.js';
 const CESIUM_CSS = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VERSION + '/Build/Cesium/Widgets/widgets.css';
 // Midtown is deliberately the starting point: 3D skyscrapers are unmistakable.
 const defaultView = { center: [-73.9853, 40.7487], zoom: 16.35, pitch: 67, bearing: -24 };
-const app = { map:null, scenes:[], marker:[], terrainAdded:false, is3d:true, activeScene:null, sceneLoading:null, sceneEpoch:0, cesium:null, viewer:null, splatControl:null, splatIds:new Set(), photoRequest:0, geosearchAt:0, tiltInProgress:false, userCamera3d:true, pendingToken:0, fallbackActive:false, fallbackStarting:false, leaflet:null, leafletLib:null, mapReady:false, bootTimer:null, styleIndex:0, tileErrors:0, sceneDataLoaded:false, cityMode:'osm-3d', canvasBuildings:null, globeActive:false, renderedBuildings:0, failedScenes:new Map(), sceneCooldownUntil:0, sceneEntry:null, sceneVisibleTiles:0 };
+const app = { map:null, scenes:[], marker:[], terrainAdded:false, is3d:true, activeScene:null, sceneLoading:null, sceneEpoch:0, cesium:null, viewer:null, splatControl:null, splatIds:new Set(), photoRequest:0, geosearchAt:0, tiltInProgress:false, userCamera3d:true, pendingToken:0, fallbackActive:false, fallbackStarting:false, leaflet:null, leafletLib:null, mapReady:false, bootTimer:null, styleIndex:0, tileErrors:0, sceneDataLoaded:false, cityMode:'osm-3d', canvasBuildings:null, globeActive:false, renderedBuildings:0, failedScenes:new Map(), sceneCooldownUntil:0, sceneEntry:null, sceneVisibleTiles:0, lodMode:isLodMode(localStorage.getItem('earthlens:lod'))?localStorage.getItem('earthlens:lod'):'auto', lodTileset:null, lodProgress:{pending:0,processing:0}, lodSource:null, lodDebug:false };
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
 const fmt=n=>Number(n).toFixed(4);
 const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -157,10 +160,79 @@ function drawScenePins(){
 }
 function showBuilding(e){if(app.activeScene)return;let feat;try{feat=app.map.queryRenderedFeatures(e.point,{layers:['earthlens-3d-buildings']})[0]}catch{}const p=feat?.properties||{};const h=Number(p.render_height??p.height);const height=Number.isFinite(h)&&h>0?h:null;const levels=Number(p['building:levels']??p.levels);const floors=Number.isFinite(levels)&&levels>0?Math.round(levels):null;const estimate=floors===null&&height!==null?Math.max(1,Math.round(height/3.2)):null;const n=p.name||p['name:en']||p.class||'Точка на карте';const html='<div class="geo-head"><b>'+escapeHtml(n)+'</b><button class="geo-close" type="button" aria-label="Закрыть">×</button></div><div class="geo-grid"><div class="geo-metric"><small>Высота</small><strong>'+(height===null?'—':height.toFixed(1)+' м')+'</strong></div><div class="geo-metric"><small>Этажность</small><strong>'+(floors!==null?floors:estimate!==null?'≈ '+estimate:'—')+'</strong></div></div><p class="geo-note">'+fmt(e.lngLat.lat)+'° / '+fmt(e.lngLat.lng)+'°. '+(estimate!==null?'≈ — расчётная этажность по высоте, не подтверждённая данными. ':'')+'Фотографии ниже относятся к ближайшим точкам, не обязательно к выбранному зданию.</p><div id="photo-strip" class="photo-strip"></div>';const card=$('geo-card');card.innerHTML=html;card.hidden=false;card.querySelector('.geo-close').addEventListener('click',()=>card.hidden=true);void loadNearbyPhotos(e.lngLat.lat,e.lngLat.lng,++app.photoRequest)}
 async function loadNearbyPhotos(lat,lon,token){const el=$('photo-strip');try{const qs=new URLSearchParams({action:'query',generator:'geosearch',ggscoord:lat+'|'+lon,ggsradius:'400',ggslimit:'8',ggsnamespace:'6',prop:'imageinfo',iiprop:'url',iiurlwidth:'160',format:'json',origin:'*'});const resp=await fetch('https://commons.wikimedia.org/w/api.php?'+qs,{signal:AbortSignal.timeout(8500)});if(!resp.ok)throw Error(resp.status);const data=await resp.json();if(token!==app.photoRequest)return;const photos=Object.values(data.query?.pages||{}).map(item=>({title:item.title?.replace(/^File:/,'')||'Фото',url:item.imageinfo?.[0]?.descriptionurl,img:item.imageinfo?.[0]?.thumburl})).filter(photo=>photo.url?.startsWith('https://')&&photo.img?.startsWith('https://'));if(!photos.length){el.innerHTML='<span class="geo-note">Фото рядом нет</span>';return}for(const photo of photos){const a=document.createElement('a');a.href=photo.url;a.target='_blank';a.rel='noopener noreferrer';const img=document.createElement('img');img.loading='lazy';img.alt=photo.title;img.src=photo.img;const label=document.createElement('span');label.textContent=photo.title.slice(0,22);a.append(img,label);el.append(a)}}catch(err){if(token===app.photoRequest)el.innerHTML='<span class="geo-note">Фотографии временно недоступны</span>'}}
-async function readScenes(){try{const r=await fetch('./scenes.json',{cache:'no-cache'});if(!r.ok)throw Error('scenes.json '+r.status);const data=await r.json();app.scenes=(data.scenes||[]).filter(s=>s&&s.enabled!==false&&typeof s.id==='string'&&Number.isFinite(s.latitude)&&Number.isFinite(s.longitude)&&Math.abs(s.latitude)<=85&&Math.abs(s.longitude)<=180&&Number.isFinite(s.activationZoom)&&((s.type==='cesium-ion-khr'&&Number.isInteger(s.assetId))||(typeof s.url==='string'&&s.url.startsWith('https://')&&['khr-3dtiles','raw-splat','3dtiles-model','3dtiles-region'].includes(s.type))));console.info('Georeferenced 3D scene catalog:',app.scenes.length);drawScenePins();cameraMoved()}catch(err){console.warn('3D scene catalog is unavailable:',err);toast('Каталог Gaussian-сцен недоступен; геометрическая карта работает')}}
-async function getCesium(){if(app.cesium)return app.cesium;if(window.Cesium){app.cesium=window.Cesium;return app.cesium}if(!window.__earthlensCesiumPromise){window.__earthlensCesiumPromise=new Promise((resolve,reject)=>{const stylesheet=document.createElement('link');stylesheet.rel='stylesheet';stylesheet.href=CESIUM_CSS;document.head.append(stylesheet);const script=document.createElement('script');script.src=CESIUM_JS;script.async=true;script.onload=()=>window.Cesium?resolve(window.Cesium):reject(Error('Cesium global missing'));script.onerror=()=>reject(Error('Cesium script unavailable'));document.head.append(script)}).catch(e=>{window.__earthlensCesiumPromise=null;throw e})}app.cesium=await window.__earthlensCesiumPromise;return app.cesium}
+async function readScenes(){try{const r=await fetch('./scenes.json',{cache:'no-cache'});if(!r.ok)throw Error('scenes.json '+r.status);const data=await r.json();app.scenes=(data.scenes||[]).filter(s=>s&&isSceneEnabled(s,{publicIonToken:ION_PUBLIC_TOKEN})&&typeof s.id==='string'&&Number.isFinite(s.latitude)&&Number.isFinite(s.longitude)&&Math.abs(s.latitude)<=85&&Math.abs(s.longitude)<=180&&Number.isFinite(s.activationZoom)&&((s.type==='cesium-ion-khr'&&Number.isInteger(s.assetId))||(typeof s.url==='string'&&s.url.startsWith('https://')&&['khr-3dtiles','raw-splat','3dtiles-model','3dtiles-region'].includes(s.type))));console.info('Georeferenced 3D scene catalog:',app.scenes.length);const redmondButton=$('redmond-go');if(redmondButton)redmondButton.hidden=!app.scenes.some(s=>s.id==='redmond-campus-khr');drawScenePins();cameraMoved()}catch(err){console.warn('3D scene catalog is unavailable:',err);toast('Каталог Gaussian-сцен недоступен; геометрическая карта работает')}}
+async function getCesium(){if(app.cesium)return app.cesium;if(window.Cesium){app.cesium=window.Cesium;if(ION_PUBLIC_TOKEN&&app.cesium.Ion)app.cesium.Ion.defaultAccessToken=ION_PUBLIC_TOKEN;return app.cesium}if(!window.__earthlensCesiumPromise){window.__earthlensCesiumPromise=new Promise((resolve,reject)=>{const stylesheet=document.createElement('link');stylesheet.rel='stylesheet';stylesheet.href=CESIUM_CSS;document.head.append(stylesheet);const script=document.createElement('script');script.src=CESIUM_JS;script.async=true;script.onload=()=>window.Cesium?resolve(window.Cesium):reject(Error('Cesium global missing'));script.onerror=()=>reject(Error('Cesium script unavailable'));document.head.append(script)}).catch(e=>{window.__earthlensCesiumPromise=null;throw e})}app.cesium=await window.__earthlensCesiumPromise;if(ION_PUBLIC_TOKEN&&app.cesium.Ion)app.cesium.Ion.defaultAccessToken=ION_PUBLIC_TOKEN;return app.cesium}
 function banner(scene,title,subtitle){$('splat-banner').hidden=false;$('scene-title').textContent=title;$('scene-description').textContent=subtitle||scene.name}
 function cleanBanner(){$('splat-banner').hidden=true;$('app').classList.remove('loading-splat','in-splat')}
+function deviceForLod(){
+  return {
+    width:window.innerWidth,
+    memory:Number.isFinite(navigator.deviceMemory)?navigator.deviceMemory:8,
+    saveData:navigator.connection?.saveData===true||navigator.connection?.effectiveType==='2g'
+  };
+}
+function applyBudgetedLod(tileset,scene){
+  const requested=applyLod(tileset,app.lodMode,deviceForLod());
+  // City-wide PLATEAU tilesets must not run at a GPU-intensive quality SSE=8.
+  if(scene?.type==='3dtiles-model'||scene?.type==='3dtiles-region'){
+    tileset.maximumScreenSpaceError=Math.max(requested,budgetForScene(scene).maximumScreenSpaceError);
+  }
+  return tileset.maximumScreenSpaceError;
+}
+function paintLodButtons(){
+  for(const button of document.querySelectorAll('[data-lod]')){
+    const on=button.dataset.lod===app.lodMode;
+    button.classList.toggle('is-active',on);
+    button.setAttribute('aria-pressed',String(on));
+  }
+  const requested=lodSSE(app.lodMode,deviceForLod());
+  const city=app.lodSource?.type==='3dtiles-model'||app.lodSource?.type==='3dtiles-region';
+  const sse=city?Math.max(requested,budgetForScene(app.lodSource).maximumScreenSpaceError):requested;
+  $('lod-sse').textContent="SSE "+sse+"px";
+  return sse;
+}
+function showLodControls(tileset,scene,viewer){
+  app.lodTileset=tileset;app.lodSource=scene;
+  app.lodProgress={pending:0,processing:0};
+  $('lod-controls').hidden=false;
+  $('lod-debug').hidden=!new URLSearchParams(location.search).has('lodDebug');
+  const sse=paintLodButtons();
+  applyBudgetedLod(tileset,scene);
+  $('lod-state').textContent=scene.type==='cesium-ion-khr'?'Cesium ion · 3DGS':'3D Tiles · потоковый LOD';
+  tileset.loadProgress.addEventListener((pending,processing)=>{
+    if(app.lodTileset!==tileset)return;
+    app.lodProgress={pending,processing};
+    $('lod-state').textContent=pending+processing>0
+      ?'Плитки: '+pending+' запросов · '+processing+' обработка'
+      :'LOD готов · SSE '+tileset.maximumScreenSpaceError+' px';
+  });
+  tileset.tileFailed.addEventListener(error=>{
+    if(app.lodTileset!==tileset)return;
+    console.warn("LOD tile failed:",error.message||error.url);
+  });
+  viewer.scene.requestRender();
+  console.info('Cesium LOD attached',scene.id,'SSE',tileset.maximumScreenSpaceError);
+}
+function hideLodControls(){
+  app.lodTileset=null;app.lodSource=null;
+  app.lodProgress={pending:0,processing:0};
+  const controls=$('lod-controls');
+  if(controls)controls.hidden=true;
+  const button=$('lod-debug');
+  if(button)button.setAttribute('aria-pressed','false');
+}
+function selectLod(mode){
+  if(!isLodMode(mode))return;
+  app.lodMode=mode;
+  try{localStorage.setItem('earthlens:lod',mode)}catch{}
+  const sse=paintLodButtons();
+  if(app.lodTileset){
+    applyBudgetedLod(app.lodTileset,app.lodSource);
+    $('lod-state').textContent='LOD '+LOD_PRESETS[mode]+' · SSE '+sse+' px';
+    app.viewer?.scene.requestRender();
+  }
+}
+
 async function enterScene(scene){
   if(app.activeScene||app.sceneLoading||app.fallbackActive)return;
   app.sceneLoading=scene;
@@ -202,6 +274,7 @@ async function loadKhrScene(scene,epoch){
     }));
     viewer=new C.Viewer(stage,{
       animation:false,baseLayerPicker:false,baseLayer:imagery,
+      terrain:CESIUM_WORLD_TERRAIN&&ION_PUBLIC_TOKEN&&scene.type==='cesium-ion-khr'&&C.Terrain?.fromWorldTerrain?C.Terrain.fromWorldTerrain():undefined,
       terrainProvider:new C.EllipsoidTerrainProvider(),
       fullscreenButton:false,vrButton:false,geocoder:false,homeButton:false,
       infoBox:false,navigationHelpButton:false,sceneModePicker:false,
@@ -220,7 +293,7 @@ async function loadKhrScene(scene,epoch){
     viewer.scene.primitives.add(tileset);
     tileset.cacheBytes=budget.cacheBytes;
     tileset.maximumCacheOverflowBytes=budget.maximumCacheOverflowBytes;
-    tileset.maximumScreenSpaceError=budget.maximumScreenSpaceError;
+    applyBudgetedLod(tileset,scene);
     if(scene.orthoUrl){
       // PLATEAU orthophotography complements actual 3D city meshes.
       // OSM remains the underlying imagery if the imagery service lacks coverage.
@@ -242,11 +315,13 @@ async function loadKhrScene(scene,epoch){
         scene.cameraHeightMeters||(isCity?550:190)
       ),
       orientation:{
-        heading:C.Math.toRadians(isCity?0:345),
-        pitch:C.Math.toRadians(isCity?-73:-55),roll:0
+        heading:C.Math.toRadians(scene.type==='cesium-ion-khr'?scene.cameraHeadingDegrees??100:isCity?0:345),
+        pitch:C.Math.toRadians(scene.type==='cesium-ion-khr'?scene.cameraPitchDegrees??-25:isCity?-73:-55),roll:0
       }
     });
-    if(!isCity){
+    // Preserve the published tutorial camera for Redmond instead of overriding
+    // it with an unrelated bounding-sphere fly-to.
+    if(!isCity&&scene.type!=='cesium-ion-khr'){
       try{await viewer.zoomTo(tileset,new C.HeadingPitchRange(
         C.Math.toRadians(scene.cameraHeadingDegrees??0),C.Math.toRadians(scene.cameraPitchDegrees??-32),scene.cameraRangeMeters??80
       ))}catch(error){console.warn('Zoom to Gaussian scene:',error)}
@@ -278,6 +353,7 @@ async function loadKhrScene(scene,epoch){
     stage.classList.add('active');stage.setAttribute('aria-hidden','false');
     app.viewer=viewer;app.activeScene=scene;
     $('app').classList.remove('loading-splat');$('app').classList.add('in-splat');$('geo-card').hidden=true;
+    showLodControls(tileset,scene,viewer);
     banner(scene,isCity?'PLATEAU 3D CITY · LIVE':'KHR Gaussian Splatting · LIVE',
       scene.name+(isCity?' · реальные городские 3D Tiles':' · Gaussian Splats LOD'));
     setMode(isCity?'3D CITY MODEL':'KHR 3DGS',isCity?'JAPAN PLATEAU · LOD 2':'KHR_gaussian_splatting · LOD');
@@ -296,6 +372,7 @@ async function loadKhrScene(scene,epoch){
     toast('Детальный 3D-слой подключён: '+scene.name);
   }catch(error){
     if(viewer&&!viewer.isDestroyed())viewer.destroy();
+    hideLodControls();
     stage.classList.remove('active','warming');stage.setAttribute('aria-hidden','true');
     throw error;
   }finally{stage.classList.remove('warming')}
@@ -319,6 +396,7 @@ function exitScene(){
     app.splatIds.clear();
   }
   cleanBanner();
+  hideLodControls();
   setMode('OSM 3D','ОБЪЁМНЫЕ ЗДАНИЯ');
   if(current&&returnTo){
     app.map.jumpTo({center:returnTo.center,zoom:Math.max(12,returnTo.zoom-1.15),pitch:63});
@@ -420,6 +498,9 @@ function supportsWebGL2(){
   }catch(error){console.warn('WebGL2 probe:',error);return false}
 }
 function boot(){
+ document.querySelectorAll('[data-lod]').forEach(button=>button.addEventListener('click',()=>selectLod(button.dataset.lod)));
+ $('lod-debug').addEventListener('click',()=>{if(!app.lodTileset)return;app.lodDebug=!app.lodDebug;app.lodTileset.debugShowBoundingVolume=app.lodDebug;$('lod-debug').setAttribute('aria-pressed',String(app.lodDebug));app.viewer?.scene.requestRender()});
+ paintLodButtons();
  $('focus-dismiss').addEventListener('click',()=>$('app').classList.add('focus-dismissed'));
  document.querySelectorAll('.city-go').forEach(button=>{
    button.addEventListener('click',()=>{
@@ -475,5 +556,5 @@ function boot(){
  }catch(err){console.error('MapLibre init:',err);void activateRasterFallback(err.message||'WebGL map initialization failed')}
 }
 // Inspectable, read-only diagnostics used by real Chromium rendering tests.
-window.__earthlensDiagnostics=()=>({engine:app.fallbackActive?'canvas-2.5d':app.mapReady?'webgl-3d':'initializing',buildings:app.renderedBuildings,zoom:app.map?.getZoom?.()??null,sceneCount:app.scenes.length,activeScene:app.activeScene?.id||null,sceneVisibleTiles:app.sceneVisibleTiles,globe:app.globeActive});
+window.__earthlensDiagnostics=()=>({engine:app.fallbackActive?'canvas-2.5d':app.mapReady?'webgl-3d':'initializing',buildings:app.renderedBuildings,zoom:app.map?.getZoom?.()??null,sceneCount:app.scenes.length,activeScene:app.activeScene?.id||null,sceneVisibleTiles:app.sceneVisibleTiles,lodMode:app.lodMode,lodSSE:app.lodTileset?.maximumScreenSpaceError??null,lonTokenConfigured:ION_PUBLIC_TOKEN.length>0,globe:app.globeActive});
 try{boot()}catch(err){console.error(err);void activateRasterFallback(err.message||'Unexpected map bootstrap failure')}
