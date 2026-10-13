@@ -44,7 +44,7 @@ test('User experience has no uploading controls; 3D scenes are automatic',async(
  assert.match(js,/enterScene\(chosen\)/);
  assert.match(js,/Cesium3DTileset\.fromUrl/);
  assert.match(js,/GaussianSplatControl/);
- assert.match(js,/s.enabled!==false/);
+ assert.match(js,/isSceneEnabled\(s,\{publicIonToken:ION_PUBLIC_TOKEN\}\)/);
  assert.match(html,/data-scene="redmond-campus-khr"[^>]*hidden/);
  assert.match(js,/isSceneEnabled\(s,\{publicIonToken:ION_PUBLIC_TOKEN\}\)/);
  assert.match(js,/maplibre-gl/);
@@ -171,10 +171,10 @@ test('Cesium 3D Gaussian splat LOD presets implement tutorial SSE and token-gate
  assert.equal(applyLod(tileset,'quality'),8);
  assert.equal(tileset.maximumScreenSpaceError,8);
  const js=await readFile(new URL('app.js',root),'utf8');
- assert.match(js,/Cesium3DTileset\\.fromIonAssetId\\(scene\\.assetId\\)/);
- assert.match(js,/Ion\\.defaultAccessToken=ION_PUBLIC_TOKEN/);
- assert.match(js,/showLodControls\\(tileset,scene,viewer\\)/);
- assert.match(js,/tileset\\.loadProgress\\.addEventListener/);
+ assert.match(js,/Cesium3DTileset\.fromIonAssetId\(scene\.assetId\)/);
+ assert.match(js,/Ion\.defaultAccessToken=ION_PUBLIC_TOKEN/);
+ assert.match(js,/showLodControls\(tileset,scene,viewer\)/);
+ assert.match(js,/tileset\.loadProgress\.addEventListener/);
  const html=await readFile(new URL('index.html',root),'utf8');
  for(const mode of ['auto','performance','balanced','quality'])assert.ok(html.includes('data-lod="'+mode+'"'));
 });
