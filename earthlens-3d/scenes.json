@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "scenes": [
+    {
+      "id": "wilhelmina-khr",
+      "name": "Wilhelmina · KHR Gaussian Splat demo",
+      "longitude": 5.139727,
+      "latitude": 52.087424,
+      "activationRadiusMeters": 210,
+      "activationZoom": 17.2,
+      "returnHeightMeters": 320,
+      "type": "khr-3dtiles",
+      "url": "https://bertt.github.io/3DGS-3DTiles-demo/tileset-data/tileset.json",
+      "source": "https://github.com/bertt/3DGS-3DTiles-demo",
+      "licenseNote": "External third-party sample. Load only from the upstream provider; redistribution rights of the captured asset are not asserted.",
+      "verifiedFrom": "3D Tiles root ECEF position [3911500.239905, 351825.9731979, 5008787.136998] = 52.087424N 5.139727E; glTF extensionsRequired: KHR_gaussian_splatting + KHR_gaussian_splatting_compression_spz_2."
+    }
+  ]
+}
