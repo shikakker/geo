@@ -5,21 +5,26 @@ const root=new URL('../',import.meta.url);
 const json=async file=>JSON.parse(await readFile(new URL(file,root),'utf8'));
 test('Scene manifest has explicit verifiable real geographic positions',async()=>{
  const {schemaVersion,scenes}=await json('scenes.json');
- assert.equal(schemaVersion,1);
- assert.ok(scenes.length>=1);
+ assert.equal(schemaVersion,2);
+ assert.ok(scenes.length>=2);
  for(const scene of scenes){
   assert.ok(Number.isFinite(scene.longitude)&&Math.abs(scene.longitude)<=180);
   assert.ok(Number.isFinite(scene.latitude)&&Math.abs(scene.latitude)<=85);
   assert.ok(scene.activationZoom>0&&scene.activationZoom<=20);
   assert.ok(scene.activationRadiusMeters>0);
-  assert.match(scene.url,/^https:\/\//);
-  assert.ok(['khr-3dtiles','raw-splat'].includes(scene.type));
+  assert.ok(['khr-3dtiles','raw-splat','cesium-ion-khr'].includes(scene.type));
+  if(scene.type==='cesium-ion-khr')assert.ok(Number.isInteger(scene.assetId));
+  else assert.match(scene.url,/^https:\/\//);
  }
  const sample=scenes.find(scene=>scene.id==='wilhelmina-khr');
  assert.ok(sample);
  assert.equal(sample.type,'khr-3dtiles');
  assert.ok(Math.abs(sample.longitude-5.139727)<0.000001);
  assert.ok(Math.abs(sample.latitude-52.087424)<0.000001);
+ const redmond=scenes.find(scene=>scene.id==='redmond-campus-khr');
+ assert.ok(redmond);
+ assert.equal(redmond.assetId,4547222);
+ assert.ok(Math.abs(redmond.latitude-47.644605)<0.000001);
 });
 test('Ten public OSS components documented with honest integration status',async()=>{
  const {libraries}=await json('open-source-stack.json');
@@ -72,4 +77,38 @@ test('No external MapLibre CSS or JavaScript CDN is necessary',async()=>{
  assert.doesNotMatch(html,/esm\.sh\/maplibre-gl/);
  assert.match(html,/id="loading-text"/);
  assert.match(html,/id="style-cycle"/);
+});
+
+test('3D camera starts over high-rise Manhattan, not in a generic flat demo area',async()=>{
+ const js=await readFile(new URL('app.js',root),'utf8');
+ assert.match(js,/center: \[-73\.9853, 40\.7487\]/);
+ assert.match(js,/pitch: 67/);
+ assert.match(js,/earthlens-3d-buildings/);
+ assert.match(js,/https:\/\/tiles\.openfreemap\.org\/planet/);
+ assert.match(js,/source-layer':'building'/);
+ assert.match(js,/updateProjection/);
+ assert.match(js,/type:globe\?'globe':'mercator'/);
+});
+test('Non-WebGL devices still show real OSM building volumes decoded from OpenFreeMap tiles',async()=>{
+ const js=await readFile(new URL('app.js',root),'utf8');
+ const canvas=await readFile(new URL('fallback-3d.js',root),'utf8');
+ const pkg=await json('package.json');
+ assert.equal(pkg.dependencies['@mapbox/vector-tile'],'2.0.5');
+ assert.equal(pkg.dependencies['pbf'],'4.0.1');
+ assert.match(js,/attachCanvasBuildingLayer/);
+ assert.match(canvas,/new VectorTile\(new Pbf\(bytes\)\)/);
+ assert.match(canvas,/tiles\.openfreemap\.org\/planet\/latest/);
+ assert.match(canvas,/ctx\.lineTo\(b\[0\],b\[1\]-lift\)/);
+ assert.match(canvas,/tileCache\.size>40/);
+});
+test('Automatic close-up transitions point to genuine KHR 3D Tiles scenes',async()=>{
+ const scenes=(await json('scenes.json')).scenes;
+ assert.ok(scenes.some(s=>s.type==='khr-3dtiles'));
+ assert.ok(scenes.some(s=>s.type==='cesium-ion-khr'));
+ const js=await readFile(new URL('app.js',root),'utf8');
+ assert.match(js,/Cesium3DTileset\.fromIonAssetId\(scene\.assetId\)/);
+ assert.match(js,/maximumScreenSpaceError/);
+ const html=await readFile(new URL('index.html',root),'utf8');
+ assert.match(html,/data-scene="redmond-campus-khr"/);
+ assert.match(html,/data-scene="wilhelmina-khr"/);
 });
