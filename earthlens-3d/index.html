@@ -4,14 +4,13 @@
 <meta name="theme-color" content="#091713"><meta name="description" content="EarthLens 3D — карта мира с объёмными зданиями, рельефом и автоматическими Gaussian Splat-сценами.">
 <title>EarthLens 3D — карта в объёме</title>
 <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
-<link rel="preconnect" href="https://esm.sh" crossorigin>
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.css">
+
 <link rel="stylesheet" href="./styles.css">
 </head><body>
 <main id="app" class="app">
 <div id="map" aria-label="Карта мира: прокрутите для приближения"></div>
 <div id="cesium-scene" class="cesium-stage" aria-label="Детальная сцена KHR Gaussian Splatting" aria-hidden="true"></div>
-<div id="loading" class="loading"><span class="spinner"></span><span>EARTHLENS 3D · ПОДКЛЮЧЕНИЕ КАРТЫ</span></div>
+<div id="loading" class="loading"><span class="spinner"></span><span id="loading-text">EARTHLENS 3D · ПОДКЛЮЧЕНИЕ КАРТЫ</span></div>
 <header class="bar glass">
   <a href="./" class="brand" aria-label="EarthLens 3D — главная"><span class="brand-orb">◉</span><span>EARTH<b>LENS</b><sup>3D</sup></span></a>
   <form id="place-search" class="search-form" role="search" autocomplete="off">
@@ -28,6 +27,7 @@
   <div class="focus-actions"><button id="sample-fly" class="sample-btn" type="button">◎ К 3D-скану</button><span id="quality-label">ГЕОМЕТРИЯ · OSM</span></div>
 </div>
 <div class="corner-toolbar glass" aria-label="Управление камерой">
+<button id="style-cycle" title="Переключить бесплатный слой карты" aria-label="Переключить картографический стиль">СЛОЙ</button>
 <button id="tilt" title="Переключить перспективу 2D/3D" aria-label="Переключить перспективу">3D</button>
 <button id="reset-view" title="Север сверху" aria-label="Север сверху">⌖</button>
 <button id="share" title="Копировать ссылку на карту" aria-label="Копировать ссылку">↗</button>
