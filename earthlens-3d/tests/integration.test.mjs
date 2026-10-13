@@ -43,3 +43,33 @@ test('Static HTML references existing CSS and JavaScript',async()=>{
  assert.match(html,/href="\.\/styles\.css"/);
  assert.match(html,/src="\.\/app\.js"/);
 });
+
+test('Primary map is bundled with correct MapLibre 6 worker setup',async()=>{
+ const js=await readFile(new URL('app.js',root),'utf8');
+ const pkg=await json('package.json');
+ assert.equal(pkg.dependencies['maplibre-gl'],'6.14.0');
+ assert.equal(pkg.dependencies['leaflet'],'1.9.4');
+ assert.equal(pkg.devDependencies.vite,'7.1.9');
+ assert.match(js,/import \* as maplibregl from 'maplibre-gl'/);
+ assert.match(js,/maplibre-gl-worker\.mjs\?worker&url/);
+ assert.match(js,/maplibregl\.setWorkerUrl\(maplibreWorkerUrl\)/);
+ assert.doesNotMatch(js,/import maplibregl from 'https:\/\/esm\.sh/);
+});
+test('Rendering recovers automatically from WebGL and provider failures',async()=>{
+ const js=await readFile(new URL('app.js',root),'utf8');
+ assert.match(js,/activateRasterFallback/);
+ assert.match(js,/!maplibregl\.supported\(\)/);
+ assert.match(js,/Map style did not become ready within 12 seconds/);
+ assert.match(js,/import\('leaflet'\)/);
+ assert.match(js,/https:\/\/tile\.openstreetmap\.org\/\{z\}\/\{x\}\/\{y\}\.png/);
+ const baseStyles=js.match(/https:\/\/tiles\.openfreemap\.org\/styles\/(?:liberty|bright|positron|fiord|dark)/g)||[];
+ assert.equal(baseStyles.length,5);
+ assert.match(js,/const tiles=L\.tileLayer/);
+});
+test('No external MapLibre CSS or JavaScript CDN is necessary',async()=>{
+ const html=await readFile(new URL('index.html',root),'utf8');
+ assert.doesNotMatch(html,/unpkg\.com\/maplibre-gl/);
+ assert.doesNotMatch(html,/esm\.sh\/maplibre-gl/);
+ assert.match(html,/id="loading-text"/);
+ assert.match(html,/id="style-cycle"/);
+});
