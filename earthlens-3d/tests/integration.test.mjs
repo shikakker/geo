@@ -5,14 +5,14 @@ const root=new URL('../',import.meta.url);
 const json=async file=>JSON.parse(await readFile(new URL(file,root),'utf8'));
 test('Scene manifest has explicit verifiable real geographic positions',async()=>{
  const {schemaVersion,scenes}=await json('scenes.json');
- assert.equal(schemaVersion,2);
- assert.ok(scenes.length>=2);
+ assert.equal(schemaVersion,3);
+ assert.ok(scenes.length>=4);
  for(const scene of scenes){
   assert.ok(Number.isFinite(scene.longitude)&&Math.abs(scene.longitude)<=180);
   assert.ok(Number.isFinite(scene.latitude)&&Math.abs(scene.latitude)<=85);
   assert.ok(scene.activationZoom>0&&scene.activationZoom<=20);
   assert.ok(scene.activationRadiusMeters>0);
-  assert.ok(['khr-3dtiles','raw-splat','cesium-ion-khr'].includes(scene.type));
+  assert.ok(['khr-3dtiles','raw-splat','cesium-ion-khr','3dtiles-model','3dtiles-region'].includes(scene.type));
   if(scene.type==='cesium-ion-khr')assert.ok(Number.isInteger(scene.assetId));
   else assert.match(scene.url,/^https:\/\//);
  }
@@ -107,10 +107,30 @@ test('Automatic close-up transitions point to genuine KHR 3D Tiles scenes',async
  const scenes=(await json('scenes.json')).scenes;
  assert.ok(scenes.some(s=>s.type==='khr-3dtiles'));
  assert.ok(scenes.some(s=>s.type==='cesium-ion-khr'));
+ assert.ok(scenes.some(s=>s.type==='3dtiles-model'));
+ assert.ok(scenes.some(s=>s.type==='3dtiles-region'));
  const js=await readFile(new URL('app.js',root),'utf8');
  assert.match(js,/Cesium3DTileset\.fromIonAssetId\(scene\.assetId\)/);
  assert.match(js,/maximumScreenSpaceError/);
  const html=await readFile(new URL('index.html',root),'utf8');
  assert.match(html,/data-scene="redmond-campus-khr"/);
  assert.match(html,/data-scene="wilhelmina-khr"/);
+});
+
+test('PLATEAU Japan LOD2 3D Tiles do not masquerade as Gaussian Splats',async()=>{
+ const manifest=await json('scenes.json');
+ const tokyo=manifest.scenes.find(scene=>scene.id==='tokyo-chiyoda-plateau');
+ const japan=manifest.scenes.find(scene=>scene.id==='japan-plateau-cities');
+ assert.ok(tokyo);assert.ok(japan);
+ assert.equal(tokyo.type,'3dtiles-model');
+ assert.equal(japan.type,'3dtiles-region');
+ assert.match(tokyo.url,/plateauview\.mlit\.go\.jp\/datacatalog\/3dtiles\/13101-bldg-lod2-latest/);
+ assert.match(japan.url,/plateauview\.mlit\.go\.jp\/datacatalog\/3dtiles\/all-bldg-maxlod2-latest/);
+ assert.deepEqual(japan.bounds,[122,24,146,46]);
+ const js=await readFile(new URL('app.js',root),'utf8');
+ assert.match(js,/scene\.type==='3dtiles-region'/);
+ assert.match(js,/3D CITY MODEL/);
+ assert.match(js,/PLATEAU 3D CITY/);
+ assert.match(js,/failedScenes\.set\(scene\.id/);
+ assert.match(js,/app\.sceneCooldownUntil/);
 });
