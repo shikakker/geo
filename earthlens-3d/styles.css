@@ -4,3 +4,6 @@
 
 /* Narrow-phone layout: prevent search from escaping the header viewport. */
 .search-form{min-width:0}.search-form input{min-width:0}.brand{flex-shrink:0}@media(max-width:540px){.bar{gap:5px}.brand{font-size:9px}.search-form{flex:1;width:0;min-width:0}.search-form input{width:0;flex:1;min-width:0}.search-form button{flex:none;min-width:26px}.brand-orb{font-size:17px}}
+
+/* Missing raster tiles must be a neutral geographic canvas, never dark green empty squares. */
+#map.leaflet-container{background:#dce4d7!important}
