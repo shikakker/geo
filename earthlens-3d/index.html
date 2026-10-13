@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#10201c"><meta name="description" content="EarthLens 3D: объемная карта мира, рельеф, здания, фотографии, Gaussian Splats">
+<title>EarthLens 3D — Объёмная карта мира</title>
+<link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl.css">
+<link rel="stylesheet" href="./styles.css"></head><body>
+<main class="app" id="app">
+<div id="map" aria-label="Интерактивная 3D карта"></div>
+<div id="map-loader" class="map-loader"><div class="orb"></div><p>ЗАГРУЗКА ПЛАНЕТЫ</p></div>
+<header class="top glass"><div class="brand"><span class="brand-symbol">◉</span><div><strong>EARTH<span>LENS</span><sup>3D</sup></strong><small>IMMERSIVE WORLD EXPLORER</small></div></div>
+<form id="search-form" class="search"><span>⌕</span><input id="search-input" placeholder="Город, улица или достопримечательность…" aria-label="Поиск места" minlength="2" maxlength="160" required><button type="submit">НАЙТИ →</button><div id="search-results" class="search-results" hidden></div></form>
+<div class="header-actions"><span class="live">● LIVE GEO DATA</span><button id="settings-open" class="round" title="Настройки">⚙</button><button id="mobile-menu" class="round mobile-only" aria-label="Слои" aria-expanded="false">☰</button></div></header>
+<aside id="sidebar" class="sidebar glass"><div class="sidebar-inner">
+<span class="eyebrow">ГЛОБАЛЬНАЯ ПЕРСПЕКТИВА / 01</span><h1>Весь мир.<br><em>Ближе, чем кажется.</em></h1>
+<p class="description">Свободная 3D-карта, где можно изучать объём зданий, реальный рельеф, фотографии мест и собственные 3D-сканы.</p>
+<hr><div class="group-title">ОТОБРАЖЕНИЕ <small>СЛОИ</small></div>
+<label class="layer"><span class="layer-icon">▥</span><span><b>Объёмные здания</b><small>Высоты по OpenStreetMap</small></span><input type="checkbox" id="buildings" checked><i></i></label>
+<label class="layer"><span class="layer-icon">⌁</span><span><b>3D-рельеф</b><small>Открытая модель высот DEM</small></span><input type="checkbox" id="terrain" checked><i></i></label>
+<label class="layer"><span class="layer-icon">▧</span><span><b>Фотографии мест</b><small>Wikimedia Commons</small></span><input type="checkbox" id="photos" checked><i></i></label>
+<div class="group-title space">КАРТОГРАФИЯ <small>СТИЛЬ КАРТЫ</small></div>
+<div class="styles">
+<button data-style="liberty" class="style-btn selected" aria-pressed="true"><i class="preview terrain-preview"></i><span>Terrain</span></button>
+<button data-style="bright" class="style-btn" aria-pressed="false"><i class="preview bright-preview"></i><span>Detailed</span></button>
+<button data-style="positron" class="style-btn" aria-pressed="false"><i class="preview clean-preview"></i><span>Minimal</span></button>
+<button data-style="satellite" class="style-btn" aria-pressed="false"><i class="preview sat-preview"></i><span>Satellite*</span></button></div>
+<div class="group-title space">ИССЛЕДОВАТЬ <small>БЫСТРЫЙ ПЕРЕЛЁТ</small></div>
+<div class="cities">
+<button data-lon="13.405" data-lat="52.52" data-zoom="16.1"><span>01</span> Берлин <b>↗</b></button>
+<button data-lon="-73.9857" data-lat="40.7484" data-zoom="16.6"><span>02</span> Нью-Йорк <b>↗</b></button>
+<button data-lon="139.699" data-lat="35.659" data-zoom="16.3"><span>03</span> Токио <b>↗</b></button>
+<button data-lon="2.2945" data-lat="48.8583" data-zoom="16.4"><span>04</span> Париж <b>↗</b></button>
+<button data-lon="55.2744" data-lat="25.1972" data-zoom="16.3"><span>05</span> Дубай <b>↗</b></button>
+<button data-lon="86.925" data-lat="27.99" data-zoom="12.2"><span>06</span> Гималаи <b>↗</b></button></div>
+<div class="splat-panel"><div class="group-title">GAUSSIAN SPLATTING <small>EXPERIMENTAL</small></div><div class="splat-intro"><span>✳</span><div><b>Объёмные фотосцены</b><small>Привязка файлов .spz / .splat / .ply к выбранной точке карты.</small></div></div>
+<form id="splat-form"><input type="url" id="splat-url" placeholder="https://.../scene.spz" required aria-label="URL 3D-скана"><button type="submit" id="splat-load">Загрузить Gaussian Splat <b>＋</b></button></form>
+<p class="caption">Нужна готовая splat-сцена с HTTPS и CORS. Обычные JPEG сами по себе не становятся 3D.</p></div>
+<div class="credits">© OpenFreeMap · OpenMapTiles · OpenStreetMap · Elevation AWS<br>EARTHLENS 3D / PROTOTYPE 01</div>
+</div></aside>
+<aside id="inspector" class="inspector glass" aria-label="Информация о выбранном месте">
+<div class="inspect-header"><div><span class="eyebrow">ПАНЕЛЬ ИССЛЕДОВАНИЯ / 02</span><h2 id="inspect-title">Данные о месте</h2></div><button id="inspect-close" class="round" title="Закрыть">×</button></div>
+<div id="inspect-body" class="inspect-body"><div class="empty-detail"><div class="target-icon">⊕</div><b>Выберите объект на карте</b><p>Нажмите на здание или точку, чтобы узнать координаты, высоту, этажность и увидеть фотографии рядом.</p></div>
+<hr><div class="group-title">НАВИГАЦИЯ <small>УПРАВЛЕНИЕ</small></div><div class="instruction">01 <span>Перетащите карту для перемещения</span></div><div class="instruction">02 <span>Ctrl + перетаскивание для поворота</span></div><div class="instruction">03 <span>Колесо или жест — приблизить</span></div></div>
+<div class="inspect-foot"><span class="dot"></span><span id="data-status">Ожидание данных…</span></div></aside>
+<div class="camera glass"><span>CAMERA MODE</span><button id="view2d" aria-pressed="false">2D</button><button id="view3d" class="on" aria-pressed="true">3D</button><button id="north" title="Север наверх">⌖</button></div>
+<footer class="status glass"><span class="coords"><i class="dot"></i><span id="position">52.5200° N · 13.4050° E</span></span><i class="sep"></i><span id="zoom">ZOOM 15.7</span><i class="sep"></i><span id="tilt" class="desktop-only">TILT 62°</span><span class="grow"></span><span id="provider" class="desktop-only">◉ OPENFREEMAP</span><button id="share">↗ ПОДЕЛИТЬСЯ</button></footer>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<dialog id="settings-dialog"><div class="dialog-box"><div class="dialog-top"><div><span class="eyebrow">НАСТРОЙКИ</span><h2>Спутниковые снимки</h2></div><button id="settings-close" class="round" aria-label="Закрыть">×</button></div><p>3D-карта и рельеф работают бесплатно без ключей. Для режима Satellite нужен публичный ключ MapTiler. Ограничьте ключ адресом вашего сайта у провайдера.</p><label for="map-key">MapTiler public API key</label><input id="map-key" placeholder="Вставьте ключ MapTiler" autocomplete="off"><small>Хранится только в этом браузере. Не попадает в GitHub.</small><div class="dialog-actions"><button id="settings-save">Сохранить</button><button id="settings-remove" class="muted-btn">Удалить</button></div><p class="fineprint">Спутниковые изображения и Gaussian Splats — разные типы данных: снимки не дают настоящие текстурированные 3D-модели без реконструкции.</p></div></dialog>
+</main><script type="module" src="./app.js"></script></body></html>
