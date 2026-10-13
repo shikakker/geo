@@ -39,3 +39,9 @@
   .focus-card{width:225px}
   .focus-card .kicker{letter-spacing:.08em}
 }
+
+/* Prewarm Cesium outside the visible viewport until real geometric 3D tiles draw. */
+.cesium-stage.warming{visibility:visible;opacity:0;pointer-events:none}
+
+/* Keep the Cesium GL canvas composited during warmup without hiding the live map. */
+.cesium-stage.warming{visibility:visible;opacity:0.015;pointer-events:none}

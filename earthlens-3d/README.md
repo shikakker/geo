@@ -103,3 +103,14 @@ Use framework Vite/static, build command npm run build, output dist. GitHub Logi
 - Wikimedia Commons: https://commons.wikimedia.org
 
 Globally continuous **photorealistic** 3D content is not in these libraries. Photogrammetric 3D meshes or actual Gaussian-splat scenes must exist and be georeferenced, licensed, optimized and hosted. Future work: more verified scans, wider coverage, tile caching, provenance, LOD budgets and visual browser QA.
+
+## 2026-10-13 reliability release
+
+- **Redmond Cesium ion asset 4547222 disabled**: public browser requests returned 401. There is no login or upload step for end users. The metadata remains in `scenes.json` marked `enabled:false` for provenance; no misleading automatic map marker or failed button.
+- The open Utrecht `KHR_gaussian_splatting` 3D Tiles scene remains the supported photographic pilot. Japan PLATEAU open geometric LOD2 tiles remain enabled.
+- The map stays in actual global OSM 3D mode while loading Cesium and switches only after a *visible content tile* is rendered. A 27-second timeout restores the map if geometry cannot stream; no blank detail view.
+- GitHub Pages release now runs **real desktop + mobile Chromium WebGL2 smoke tests** before publishing. This prevents a return to the previous flat-map regression.
+
+## Visual validation of real Gaussian geometry
+
+In Chromium smoke tests the app now decodes a PNG screenshot for the center of each registered detail scene and validates its luminance standard deviation. Cesium reports a tile as visible before its GPU shader / splat textures have finished initializing; the viewer consequently uses a short warmup delay after the first visible tile before fading from MapLibre's proven 3D scene. A flat colored background is rejected by the smoke test, even when Cesium's metadata and tile events succeeded.

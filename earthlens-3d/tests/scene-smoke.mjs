@@ -1,5 +1,8 @@
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import pngjs from 'pngjs';
+const {PNG}=pngjs;
 const sceneId=process.env.EARTHLENS_SCENE_ID||'tokyo-chiyoda-plateau';
 const browser=await chromium.launch({headless:true,args:['--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--disable-dev-shm-usage']});
 const page=await browser.newPage({viewport:{width:1280,height:850},deviceScaleFactor:1});
@@ -15,7 +18,9 @@ try{
   await page.locator('#loading.hidden').waitFor({timeout:35000});
   console.log('Initial engine',JSON.stringify(await page.evaluate(()=>window.__earthlensDiagnostics?.())));
   await page.locator('[data-scene="'+sceneId+'"]').click();
-  await page.waitForTimeout(28000);
+  // The main map stays visible while Cesium streams. Wait for real visible geometry.
+  await page.waitForFunction(id=>window.__earthlensDiagnostics?.()?.activeScene===id,sceneId,{timeout:55000}).catch(()=>{});
+  await page.waitForTimeout(1100);
   const state=await page.evaluate(()=>({
     diagnostic:window.__earthlensDiagnostics?.(),
     cesiumActive:document.getElementById('cesium-scene').classList.contains('active'),
@@ -23,6 +28,24 @@ try{
     description:document.getElementById('scene-description')?.textContent,
     loading:document.getElementById('loading')?.className
   }));
-  await page.screenshot({path:'screenshots/earthlens-'+sceneId+'.png',animations:'disabled'});
+  const image=await page.screenshot({path:'screenshots/earthlens-'+sceneId+'.png',animations:'disabled'});
+  const png=PNG.sync.read(image);
+  // Examine the central area, away from top/bottom UI: blank Cesium backgrounds
+  // have near-zero luminance deviation, actual geometry has significant detail.
+  let samples=0,sum=0,sumSquares=0;
+  for(let y=Math.floor(png.height*.32);y<Math.floor(png.height*.78);y+=4){
+    for(let x=Math.floor(png.width*.30);x<Math.floor(png.width*.70);x+=4){
+      const o=(y*png.width+x)*4;
+      const lum=0.299*png.data[o]+0.587*png.data[o+1]+0.114*png.data[o+2];
+      sum+=lum;sumSquares+=lum*lum;samples++;
+    }
+  }
+  const variance=Math.max(0,sumSquares/samples-(sum/samples)**2);
+  const imageLumaStddev=Math.sqrt(variance);
   console.log(JSON.stringify({type:sceneId,state,errors:errors.slice(-12),providerFailures:providers.slice(-12),providerResponses:urls.slice(-12)}));
+  assert.equal(state.cesiumActive,true,'A real 3D detail scene must become visible');
+  assert.equal(state.diagnostic.activeScene,sceneId,'The correct georeferenced scene must be selected');
+  assert.ok(state.diagnostic.sceneVisibleTiles>0,'At least one actual model tile must be rendered');
+  console.log('Scene center pixel luma variation',sceneId,imageLumaStddev.toFixed(2));
+  assert.ok(imageLumaStddev>=14,'A real 3D model must be visually visible, not a blank tinted Cesium viewport (stddev='+imageLumaStddev.toFixed(2)+')');
 }finally{await browser.close()}
