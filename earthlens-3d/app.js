@@ -245,6 +245,17 @@ async function activateRasterFallback(reason){
    $('loading-text').textContent='Резервная карта загружается медленно…';
  }},9000);
 }
+function supportsWebGL2(){
+  // MapLibre GL JS v6 does NOT export supported(). Test the graphics API directly.
+  // Browsers may expose the API while disabling rendering in GPU settings.
+  try{
+    const probe=document.createElement('canvas');
+    const context=probe.getContext('webgl2',{failIfMajorPerformanceCaveat:false});
+    const ok=!!context&&context.getSupportedExtensions()!==null;
+    context?.getExtension('WEBGL_lose_context')?.loseContext();
+    return ok;
+  }catch(error){console.warn('WebGL2 probe:',error);return false}
+}
 function boot(){
  $('focus-dismiss').addEventListener('click',()=>$('app').classList.add('focus-dismissed'));
  document.querySelectorAll('.city-go').forEach(button=>{
@@ -274,7 +285,7 @@ function boot(){
  window.addEventListener('hashchange',()=>{if(app.activeScene||!app.map)return;app.map.jumpTo(parseHash())});
  // The recovery timer is armed before any external style request is made.
  app.bootTimer=setTimeout(()=>{if(!app.mapReady)void activateRasterFallback('Map style did not become ready within 12 seconds')},12000);
- if(!maplibregl.supported()){void activateRasterFallback('WebGL2 unavailable');return}
+ if(!supportsWebGL2()){void activateRasterFallback('WebGL2 unavailable');return}
  try{
    const map=new maplibregl.Map({container:'map',style:MAP_STYLE,...parseHash(),maxPitch:85,canvasContextAttributes:{antialias:true,preserveDrawingBuffer:false},attributionControl:false,hash:false});
    app.map=map;
