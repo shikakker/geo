@@ -42,6 +42,23 @@ jobs:
           test -f dist/index.html
           test -n "$(find dist/assets -name '*.js' -print -quit)"
           grep -q /geo/assets/ dist/index.html
+      - name: Install Chromium for map visual acceptance
+        run: |
+          npm install --no-save playwright@1.56.1 --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Start GitHub Pages candidate
+        run: |
+          npm run preview -- --port 4173 > /tmp/earthlens-pages-preview.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173/geo/ > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/earthlens-pages-preview.log
+          exit 1
+      - name: Block release unless real 3D map works in mobile and desktop Chromium
+        env:
+          EARTHLENS_TEST_URL: http://127.0.0.1:4173/geo/
+        run: node tests/browser-smoke.mjs
       - name: Upload GitHub Pages website
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:

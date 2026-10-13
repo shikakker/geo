@@ -24,6 +24,7 @@ test('Scene manifest has explicit verifiable real geographic positions',async()=
  const redmond=scenes.find(scene=>scene.id==='redmond-campus-khr');
  assert.ok(redmond);
  assert.equal(redmond.assetId,4547222);
+ assert.equal(redmond.enabled,false,'401 source must not be presented as working');
  assert.ok(Math.abs(redmond.latitude-47.644605)<0.000001);
 });
 test('Ten public OSS components documented with honest integration status',async()=>{
@@ -41,6 +42,8 @@ test('User experience has no uploading controls; 3D scenes are automatic',async(
  assert.match(js,/enterScene\(chosen\)/);
  assert.match(js,/Cesium3DTileset\.fromUrl/);
  assert.match(js,/GaussianSplatControl/);
+ assert.match(js,/s.enabled!==false/);
+ assert.doesNotMatch(html,/data-scene="redmond-campus-khr"/);
  assert.match(js,/maplibre-gl/);
 });
 test('Static HTML references existing CSS and JavaScript',async()=>{
@@ -133,4 +136,14 @@ test('PLATEAU Japan LOD2 3D Tiles do not masquerade as Gaussian Splats',async()=
  assert.match(js,/PLATEAU 3D CITY/);
  assert.match(js,/failedScenes\.set\(scene\.id/);
  assert.match(js,/app\.sceneCooldownUntil/);
+});
+
+test('Cesium scene transition is gated on a real visible 3D tile, never metadata alone',async()=>{
+ const js=await readFile(new URL('app.js',root),'utf8');
+ const css=await readFile(new URL('styles.css',root),'utf8');
+ assert.match(js,/tileset\.tileVisible\.addEventListener/);
+ assert.match(js,/No real 3D Tiles content became visible within 27 seconds/);
+ assert.match(js,/stage\.classList\.add\('warming'\)/);
+ assert.match(css,/\.cesium-stage\.warming/);
+ assert.match(js,/sceneVisibleTiles/);
 });

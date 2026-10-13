@@ -58,10 +58,6 @@ jobs:
         run: node tests/browser-smoke.mjs
       - name: Probe Tokyo PLATEAU 3D Tiles and log provider errors
         run: node tests/scene-smoke.mjs
-      - name: Probe Redmond 3D Gaussian Splats and log provider errors
-        run: node tests/scene-smoke.mjs
-        env:
-          EARTHLENS_SCENE_ID: redmond-campus-khr
       - name: Probe Utrecht KHR Gaussian 3D Tiles and log provider responses
         run: node tests/scene-smoke.mjs
         env:

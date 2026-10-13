@@ -20,7 +20,7 @@ const CESIUM_JS = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VER
 const CESIUM_CSS = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VERSION + '/Build/Cesium/Widgets/widgets.css';
 // Midtown is deliberately the starting point: 3D skyscrapers are unmistakable.
 const defaultView = { center: [-73.9853, 40.7487], zoom: 16.35, pitch: 67, bearing: -24 };
-const app = { map:null, scenes:[], marker:[], terrainAdded:false, is3d:true, activeScene:null, sceneLoading:null, sceneEpoch:0, cesium:null, viewer:null, splatControl:null, splatIds:new Set(), photoRequest:0, geosearchAt:0, tiltInProgress:false, userCamera3d:true, pendingToken:0, fallbackActive:false, fallbackStarting:false, leaflet:null, leafletLib:null, mapReady:false, bootTimer:null, styleIndex:0, tileErrors:0, sceneDataLoaded:false, cityMode:'osm-3d', canvasBuildings:null, globeActive:false, renderedBuildings:0, failedScenes:new Map(), sceneCooldownUntil:0, sceneEntry:null };
+const app = { map:null, scenes:[], marker:[], terrainAdded:false, is3d:true, activeScene:null, sceneLoading:null, sceneEpoch:0, cesium:null, viewer:null, splatControl:null, splatIds:new Set(), photoRequest:0, geosearchAt:0, tiltInProgress:false, userCamera3d:true, pendingToken:0, fallbackActive:false, fallbackStarting:false, leaflet:null, leafletLib:null, mapReady:false, bootTimer:null, styleIndex:0, tileErrors:0, sceneDataLoaded:false, cityMode:'osm-3d', canvasBuildings:null, globeActive:false, renderedBuildings:0, failedScenes:new Map(), sceneCooldownUntil:0, sceneEntry:null, sceneVisibleTiles:0 };
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
 const fmt=n=>Number(n).toFixed(4);
 const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -134,7 +134,7 @@ function initTerrain(){const m=app.map;if(!m.isStyleLoaded())return;try{if(!m.ge
 function styleLoaded(){initOpenBuildings();initTerrain();updateProjection()}
 function maybeTilt(){if(app.tiltInProgress||!app.userCamera3d||app.activeScene||app.sceneLoading)return;const m=app.map,z=m.getZoom();if(z>=14.4&&m.getPitch()<35){app.tiltInProgress=true;m.easeTo({pitch:60,duration:620});setTimeout(()=>app.tiltInProgress=false,700)}else if(z<11.6&&m.getPitch()>24){app.tiltInProgress=true;m.easeTo({pitch:0,duration:620});setTimeout(()=>app.tiltInProgress=false,700)}}
 function cameraMoved(){showPosition();storeCamera();updateGuidance();updateProjection();updateBuildingStatistics();maybeTilt();if(app.sceneLoading){const nearest=locateNearestScene();if(!nearest||nearest.id!==app.sceneLoading.id){app.sceneEpoch++;app.sceneLoading=null;cleanBanner()}return}const chosen=locateNearestScene();if(chosen)void enterScene(chosen)}
-function sampleFly(){const scene=app.scenes[0];if(!scene){toast('Геопривязанных Gaussian-сцен пока нет');return}app.map.flyTo({center:[scene.longitude,scene.latitude],zoom:scene.activationZoom+0.15,pitch:63,bearing:-15,duration:2000});toast('Приблизьте ещё на один шаг: KHR-скан загрузится автоматически')}
+function sampleFly(){const scene=app.scenes[0];if(!scene){toast('Геопривязанных Gaussian-сцен пока нет');return}app.sceneCooldownUntil=0;app.failedScenes.delete(scene.id);app.map.flyTo({center:[scene.longitude,scene.latitude],zoom:scene.activationZoom+0.15,pitch:63,bearing:-15,duration:2000});toast('Приблизьте ещё на один шаг: KHR-скан загрузится автоматически')}
 function drawScenePins(){
   for(const marker of app.marker)try{marker.remove()}catch{}
   app.marker=[];
@@ -156,7 +156,7 @@ function drawScenePins(){
 }
 function showBuilding(e){if(app.activeScene)return;let feat;try{feat=app.map.queryRenderedFeatures(e.point,{layers:['earthlens-3d-buildings']})[0]}catch{}const p=feat?.properties||{};const h=Number(p.render_height??p.height);const height=Number.isFinite(h)&&h>0?h:null;const levels=Number(p['building:levels']??p.levels);const floors=Number.isFinite(levels)&&levels>0?Math.round(levels):null;const estimate=floors===null&&height!==null?Math.max(1,Math.round(height/3.2)):null;const n=p.name||p['name:en']||p.class||'Точка на карте';const html='<div class="geo-head"><b>'+escapeHtml(n)+'</b><button class="geo-close" type="button" aria-label="Закрыть">×</button></div><div class="geo-grid"><div class="geo-metric"><small>Высота</small><strong>'+(height===null?'—':height.toFixed(1)+' м')+'</strong></div><div class="geo-metric"><small>Этажность</small><strong>'+(floors!==null?floors:estimate!==null?'≈ '+estimate:'—')+'</strong></div></div><p class="geo-note">'+fmt(e.lngLat.lat)+'° / '+fmt(e.lngLat.lng)+'°. '+(estimate!==null?'≈ — расчётная этажность по высоте, не подтверждённая данными. ':'')+'Фотографии ниже относятся к ближайшим точкам, не обязательно к выбранному зданию.</p><div id="photo-strip" class="photo-strip"></div>';const card=$('geo-card');card.innerHTML=html;card.hidden=false;card.querySelector('.geo-close').addEventListener('click',()=>card.hidden=true);void loadNearbyPhotos(e.lngLat.lat,e.lngLat.lng,++app.photoRequest)}
 async function loadNearbyPhotos(lat,lon,token){const el=$('photo-strip');try{const qs=new URLSearchParams({action:'query',generator:'geosearch',ggscoord:lat+'|'+lon,ggsradius:'400',ggslimit:'8',ggsnamespace:'6',prop:'imageinfo',iiprop:'url',iiurlwidth:'160',format:'json',origin:'*'});const resp=await fetch('https://commons.wikimedia.org/w/api.php?'+qs,{signal:AbortSignal.timeout(8500)});if(!resp.ok)throw Error(resp.status);const data=await resp.json();if(token!==app.photoRequest)return;const photos=Object.values(data.query?.pages||{}).map(item=>({title:item.title?.replace(/^File:/,'')||'Фото',url:item.imageinfo?.[0]?.descriptionurl,img:item.imageinfo?.[0]?.thumburl})).filter(photo=>photo.url?.startsWith('https://')&&photo.img?.startsWith('https://'));if(!photos.length){el.innerHTML='<span class="geo-note">Фото рядом нет</span>';return}for(const photo of photos){const a=document.createElement('a');a.href=photo.url;a.target='_blank';a.rel='noopener noreferrer';const img=document.createElement('img');img.loading='lazy';img.alt=photo.title;img.src=photo.img;const label=document.createElement('span');label.textContent=photo.title.slice(0,22);a.append(img,label);el.append(a)}}catch(err){if(token===app.photoRequest)el.innerHTML='<span class="geo-note">Фотографии временно недоступны</span>'}}
-async function readScenes(){try{const r=await fetch('./scenes.json',{cache:'no-cache'});if(!r.ok)throw Error('scenes.json '+r.status);const data=await r.json();app.scenes=(data.scenes||[]).filter(s=>s&&typeof s.id==='string'&&Number.isFinite(s.latitude)&&Number.isFinite(s.longitude)&&Math.abs(s.latitude)<=85&&Math.abs(s.longitude)<=180&&Number.isFinite(s.activationZoom)&&((s.type==='cesium-ion-khr'&&Number.isInteger(s.assetId))||(typeof s.url==='string'&&s.url.startsWith('https://')&&['khr-3dtiles','raw-splat','3dtiles-model','3dtiles-region'].includes(s.type))));console.info('Georeferenced 3D scene catalog:',app.scenes.length);drawScenePins();cameraMoved()}catch(err){console.warn('3D scene catalog is unavailable:',err);toast('Каталог Gaussian-сцен недоступен; геометрическая карта работает')}}
+async function readScenes(){try{const r=await fetch('./scenes.json',{cache:'no-cache'});if(!r.ok)throw Error('scenes.json '+r.status);const data=await r.json();app.scenes=(data.scenes||[]).filter(s=>s&&s.enabled!==false&&typeof s.id==='string'&&Number.isFinite(s.latitude)&&Number.isFinite(s.longitude)&&Math.abs(s.latitude)<=85&&Math.abs(s.longitude)<=180&&Number.isFinite(s.activationZoom)&&((s.type==='cesium-ion-khr'&&Number.isInteger(s.assetId))||(typeof s.url==='string'&&s.url.startsWith('https://')&&['khr-3dtiles','raw-splat','3dtiles-model','3dtiles-region'].includes(s.type))));console.info('Georeferenced 3D scene catalog:',app.scenes.length);drawScenePins();cameraMoved()}catch(err){console.warn('3D scene catalog is unavailable:',err);toast('Каталог Gaussian-сцен недоступен; геометрическая карта работает')}}
 async function getCesium(){if(app.cesium)return app.cesium;if(window.Cesium){app.cesium=window.Cesium;return app.cesium}if(!window.__earthlensCesiumPromise){window.__earthlensCesiumPromise=new Promise((resolve,reject)=>{const stylesheet=document.createElement('link');stylesheet.rel='stylesheet';stylesheet.href=CESIUM_CSS;document.head.append(stylesheet);const script=document.createElement('script');script.src=CESIUM_JS;script.async=true;script.onload=()=>window.Cesium?resolve(window.Cesium):reject(Error('Cesium global missing'));script.onerror=()=>reject(Error('Cesium script unavailable'));document.head.append(script)}).catch(e=>{window.__earthlensCesiumPromise=null;throw e})}app.cesium=await window.__earthlensCesiumPromise;return app.cesium}
 function banner(scene,title,subtitle){$('splat-banner').hidden=false;$('scene-title').textContent=title;$('scene-description').textContent=subtitle||scene.name}
 function cleanBanner(){$('splat-banner').hidden=true;$('app').classList.remove('loading-splat','in-splat')}
@@ -188,6 +188,8 @@ async function loadKhrScene(scene,epoch){
   const C=await getCesium();
   if(epoch!==app.sceneEpoch)return;
   const stage=$('cesium-scene');
+  stage.classList.add('warming');
+  app.sceneVisibleTiles=0;
   let viewer=null;
   try{
     // OSM imagery gives orientation during asynchronous photogrammetric LOD streaming.
@@ -243,6 +245,25 @@ async function loadKhrScene(scene,epoch){
       ))}catch(error){console.warn('Zoom to Gaussian scene:',error)}
     }
     if(epoch!==app.sceneEpoch){viewer.destroy();return}
+    // Keep the established OSM 3D map visible until the first actual 3D Tiles
+    // content is visible in Cesium. Tileset metadata alone is not a rendered scene.
+    await new Promise((resolve,reject)=>{
+      let settled=false,unsubscribe=()=>{};
+      const timeout=setTimeout(()=>{
+        if(settled)return;
+        settled=true;unsubscribe();
+        reject(new Error('No real 3D Tiles content became visible within 27 seconds'));
+      },27000);
+      unsubscribe=tileset.tileVisible.addEventListener(tile=>{
+        if(settled||!tile?.content||tile.content.ready===false)return;
+        settled=true;clearTimeout(timeout);unsubscribe();
+        app.sceneVisibleTiles=1;
+        resolve();
+      });
+      viewer.scene.requestRender();
+    });
+    if(epoch!==app.sceneEpoch){viewer.destroy();return}
+    stage.classList.remove('warming');
     stage.classList.add('active');stage.setAttribute('aria-hidden','false');
     app.viewer=viewer;app.activeScene=scene;
     $('app').classList.remove('loading-splat');$('app').classList.add('in-splat');$('geo-card').hidden=true;
@@ -254,7 +275,7 @@ async function loadKhrScene(scene,epoch){
     tileset.tileLoad.addEventListener(()=>{
       if(app.activeScene?.id!==scene.id)return;
       loaded++;
-      if(loaded===1)$('scene-description').textContent=scene.name+' · геометрия загружается';
+      if(loaded===1)$('scene-description').textContent=scene.name+' · высокодетальные плитки подгружаются';
     });
     viewer.camera.moveEnd.addEventListener(()=>{
       if(app.activeScene?.id!==scene.id)return;
@@ -264,9 +285,9 @@ async function loadKhrScene(scene,epoch){
     toast('Детальный 3D-слой подключён: '+scene.name);
   }catch(error){
     if(viewer&&!viewer.isDestroyed())viewer.destroy();
-    stage.classList.remove('active');stage.setAttribute('aria-hidden','true');
+    stage.classList.remove('active','warming');stage.setAttribute('aria-hidden','true');
     throw error;
-  }
+  }finally{stage.classList.remove('warming')}
 }
 async function loadRawScene(scene,epoch){const lib=await import('https://esm.sh/maplibre-gl-splat@0.2.9?deps=maplibre-gl@6.14.0,three@0.186.1');if(epoch!==app.sceneEpoch)return;const Control=lib.GaussianSplatControl;if(typeof Control!=='function')throw Error('GaussianSplatControl unavailable');if(!app.splatControl){app.splatControl=new Control({collapsed:true,flyTo:false});app.map.addControl(app.splatControl,'top-right')}const layerId=await app.splatControl.loadSplat(scene.url,{longitude:scene.longitude,latitude:scene.latitude,altitude:scene.altitude||0,rotation:scene.rotation||[0,0,0],scale:scene.scale||1});if(epoch!==app.sceneEpoch){app.splatControl.removeSplat(layerId);return}app.splatIds.add(layerId);app.activeScene=scene;$('app').classList.remove('loading-splat');$('geo-card').hidden=true;banner(scene,'Gaussian Splatting · LIVE',scene.name);setMode('RAW 3DGS','SPATIAL GAUSSIAN SPLATS');toast('Геопривязанный Gaussian Splat загружен автоматически')}
 function exitScene(){
@@ -400,6 +421,8 @@ function boot(){
      }
      if(!Number.isFinite(lat)||!Number.isFinite(lon)||!Number.isFinite(zoom))return;
      if(app.activeScene)exitScene();
+     // Explicit navigation bypasses automatic 30-second scene exit cooldown.
+     if(button.dataset.scene){app.sceneCooldownUntil=0;app.failedScenes.delete(button.dataset.scene)}
      $('geo-card').hidden=true;
      app.map.flyTo({center:[lon,lat],zoom,pitch:66,bearing:-26,duration:2100});
    });
@@ -441,5 +464,5 @@ function boot(){
  }catch(err){console.error('MapLibre init:',err);void activateRasterFallback(err.message||'WebGL map initialization failed')}
 }
 // Inspectable, read-only diagnostics used by real Chromium rendering tests.
-window.__earthlensDiagnostics=()=>({engine:app.fallbackActive?'canvas-2.5d':app.mapReady?'webgl-3d':'initializing',buildings:app.renderedBuildings,zoom:app.map?.getZoom?.()??null,sceneCount:app.scenes.length,activeScene:app.activeScene?.id||null,globe:app.globeActive});
+window.__earthlensDiagnostics=()=>({engine:app.fallbackActive?'canvas-2.5d':app.mapReady?'webgl-3d':'initializing',buildings:app.renderedBuildings,zoom:app.map?.getZoom?.()??null,sceneCount:app.scenes.length,activeScene:app.activeScene?.id||null,sceneVisibleTiles:app.sceneVisibleTiles,globe:app.globeActive});
 try{boot()}catch(err){console.error(err);void activateRasterFallback(err.message||'Unexpected map bootstrap failure')}
