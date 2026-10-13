@@ -246,6 +246,22 @@ async function activateRasterFallback(reason){
  }},9000);
 }
 function boot(){
+ $('focus-dismiss').addEventListener('click',()=>$('app').classList.add('focus-dismissed'));
+ document.querySelectorAll('.city-go').forEach(button=>{
+   button.addEventListener('click',()=>{
+     let lon=Number(button.dataset.lon),lat=Number(button.dataset.lat),zoom=Number(button.dataset.zoom);
+     if(button.dataset.scene){
+       const scene=app.scenes.find(s=>s.id===button.dataset.scene);
+       if(!scene){toast('Каталог 3D-сцен ещё подключается');return}
+       lon=scene.longitude;lat=scene.latitude;zoom=scene.activationZoom+0.3;
+       toast('Приближаем настоящую Gaussian Splat-сцену: '+scene.name);
+     }
+     if(!Number.isFinite(lat)||!Number.isFinite(lon)||!Number.isFinite(zoom))return;
+     if(app.activeScene)exitScene();
+     $('geo-card').hidden=true;
+     app.map.flyTo({center:[lon,lat],zoom,pitch:66,bearing:-26,duration:2100});
+   });
+ });
  $('place-search').addEventListener('submit',placeSearch);
  $('search-text').addEventListener('keydown',e=>{if(e.key==='Escape')$('search-results').hidden=true});
  $('sample-fly').addEventListener('click',sampleFly);
