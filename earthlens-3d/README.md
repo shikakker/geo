@@ -114,3 +114,31 @@ Globally continuous **photorealistic** 3D content is not in these libraries. Pho
 ## Visual validation of real Gaussian geometry
 
 In Chromium smoke tests the app now decodes a PNG screenshot for the center of each registered detail scene and validates its luminance standard deviation. Cesium reports a tile as visible before its GPU shader / splat textures have finished initializing; the viewer consequently uses a short warmup delay after the first visible tile before fading from MapLibre's proven 3D scene. A flat colored background is rejected by the smoke test, even when Cesium's metadata and tile events succeeded.
+
+## Cesium Gaussian Splat LOD tutorial integration (October 2026)
+
+Upstream guide (Apache-2.0 example): https://cesium.com/learn/cesiumjs-learn/3d-guassian-splat-tilesets-lods/
+
+This is a native integration, not an iframe. On a registered scene, the existing MapLibre map remains visible while **CesiumJS v1.141** creates an offscreen Viewer, streams 3D Tiles and verifies the first visible tile. Only then does it reveal detailed geometry. Controls appear within the existing 3D scene banner:
+
+- **AUTO**: SSE 16 px desktop; SSE 32 px on phones, slow connections and low-memory devices.
+- **FAST**: SSE 32 px. Better performance, coarser 3D Tiles hierarchy.
+- **BALANCE**: SSE 16 px.
+- **DETAIL**: SSE 8 px. Sharper result at potentially greater network and GPU cost.
+
+Clicking a mode updates the active \`Cesium3DTileset.maximumScreenSpaceError\` without rebuilding the scene. \`Cesium3DTileset.loadProgress\` reports outstanding requests and processing. For diagnostics add \`?lodDebug=1\` to the website URL and press **ГРАНИЦЫ** to see tile hierarchy bounding boxes. The quality choice persists in this browser. Users **never upload 3D files**.
+
+### Microsoft Redmond Campus (tutorial asset 4547222)
+
+The Cesium guide showcases ~110 million splats across 3.7 km² and a camera at longitude **-122.141186**, latitude **47.644605**, altitude **170.48 m**, heading **100°**, pitch **-25°**. EarthLens now preserves exactly this tutorial camera and enables this scene only when the **project owner** configures Cesium ion access. In previous production Chromium runs the public asset endpoint returned HTTP **401**, so simply making the button visible would create a broken experience.
+
+**Owner configuration (optional, no end-user token or upload):**
+
+1. In the Cesium ion dashboard, create an **assets:read-only public application token** with access to the desired published 3DGS LOD dataset. If asset 4547222 is unavailable to your account, obtain viewing access from the asset owner or publish an equivalent authorized asset and adapt the scene manifest.
+2. Restrict allowed origins/domains to **https://shikakker.github.io** (and any future Vercel domain) in Cesium ion if the account supports it. Never use an account-wide default token or an \`assets:write\` token in a public client.
+3. GitHub \`shikakker/geo\` → **Settings → Secrets and variables → Actions → Variables**: set \`CESIUM_ION_PUBLIC_TOKEN\`. A Pages rebuild passes it into Vite as \`VITE_CESIUM_ION_PUBLIC_TOKEN\`. It is intentionally client-visible, *not a secret*. Create a restricted read-only token.
+4. Once a new Pages workflow successfully builds, the **✳ Cesium LOD** destination is automatically enabled. If Cesium still responds 401/403, EarthLens remains on the 3D OSM map with a temporary retry cooldown.
+
+**Without the token**, existing open **Utrecht KHR Gaussian Splat** and **Tokyo PLATEAU 3D Tiles** still work and now use the same LOD controls. CESIUM_WORLD_TERRAIN is opt-in through \`VITE_CESIUM_WORLD_TERRAIN=true\` and requires authorized Cesium ion access; default uses open-map imagery and ellipsoid terrain within the Cesium detail view.
+
+Reference on SSE: https://cesium.com/learn/cesiumjs/ref-doc/Cesium3DTileset.html

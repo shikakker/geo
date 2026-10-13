@@ -24,7 +24,9 @@ test('Scene manifest has explicit verifiable real geographic positions',async()=
  const redmond=scenes.find(scene=>scene.id==='redmond-campus-khr');
  assert.ok(redmond);
  assert.equal(redmond.assetId,4547222);
- assert.equal(redmond.enabled,false,'401 source must not be presented as working');
+ assert.equal(redmond.enabled,false,'401 source must not be presented as working without token');
+ assert.equal(redmond.enableWithIonToken,true);
+ assert.equal(redmond.cameraHeightMeters,170.48);
  assert.ok(Math.abs(redmond.latitude-47.644605)<0.000001);
 });
 test('Ten public OSS components documented with honest integration status',async()=>{
@@ -43,7 +45,8 @@ test('User experience has no uploading controls; 3D scenes are automatic',async(
  assert.match(js,/Cesium3DTileset\.fromUrl/);
  assert.match(js,/GaussianSplatControl/);
  assert.match(js,/s.enabled!==false/);
- assert.doesNotMatch(html,/data-scene="redmond-campus-khr"/);
+ assert.match(html,/data-scene="redmond-campus-khr"[^>]*hidden/);
+ assert.match(js,/isSceneEnabled\(s,\{publicIonToken:ION_PUBLIC_TOKEN\}\)/);
  assert.match(js,/maplibre-gl/);
 });
 test('Static HTML references existing CSS and JavaScript',async()=>{
@@ -116,7 +119,7 @@ test('Automatic close-up transitions point to genuine KHR 3D Tiles scenes',async
  assert.match(js,/Cesium3DTileset\.fromIonAssetId\(scene\.assetId\)/);
  assert.match(js,/maximumScreenSpaceError/);
  const html=await readFile(new URL('index.html',root),'utf8');
- assert.doesNotMatch(html,/data-scene="redmond-campus-khr"/);
+ assert.match(html,/data-scene="redmond-campus-khr"[^>]*hidden/);
  assert.match(html,/data-scene="wilhelmina-khr"/);
 });
 
@@ -146,4 +149,32 @@ test('Cesium scene transition is gated on a real visible 3D tile, never metadata
  assert.match(js,/stage\.classList\.add\('warming'\)/);
  assert.match(css,/\.cesium-stage\.warming/);
  assert.match(js,/sceneVisibleTiles/);
+});
+
+test('Cesium 3D Gaussian splat LOD presets implement tutorial SSE and token-gated Redmond',async()=>{
+ const {lodSSE,recommendedSSE,isSceneEnabled,applyLod,isLodMode}=await import(new URL('cesium-lod.js',root));
+ const manifest=await json('scenes.json');
+ const redmond=manifest.scenes.find(s=>s.id==='redmond-campus-khr');
+ assert.ok(redmond);
+ assert.equal(redmond.assetId,4547222);
+ assert.equal(isSceneEnabled(redmond,{}),false,'No global hidden evaluation token');
+ assert.equal(isSceneEnabled(redmond,{publicIonToken:'configured-read-token'}),true);
+ assert.equal(isSceneEnabled(manifest.scenes.find(s=>s.id==='wilhelmina-khr'),{}),true);
+ assert.equal(lodSSE('quality'),8);
+ assert.equal(lodSSE('balanced'),16);
+ assert.equal(lodSSE('performance'),32);
+ assert.equal(recommendedSSE({width:431,memory:4}),32);
+ assert.equal(recommendedSSE({width:1440,memory:8}),16);
+ assert.ok(isLodMode('auto'));
+ assert.equal(isLodMode('anything-else'),false);
+ const tileset={maximumScreenSpaceError:16};
+ assert.equal(applyLod(tileset,'quality'),8);
+ assert.equal(tileset.maximumScreenSpaceError,8);
+ const js=await readFile(new URL('app.js',root),'utf8');
+ assert.match(js,/Cesium3DTileset\\.fromIonAssetId\\(scene\\.assetId\\)/);
+ assert.match(js,/Ion\\.defaultAccessToken=ION_PUBLIC_TOKEN/);
+ assert.match(js,/showLodControls\\(tileset,scene,viewer\\)/);
+ assert.match(js,/tileset\\.loadProgress\\.addEventListener/);
+ const html=await readFile(new URL('index.html',root),'utf8');
+ for(const mode of ['auto','performance','balanced','quality'])assert.ok(html.includes('data-lod="'+mode+'"'));
 });

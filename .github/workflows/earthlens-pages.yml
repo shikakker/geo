@@ -37,6 +37,7 @@ jobs:
         run: npm run build
         env:
           EARTHLENS_BASE: /geo/
+          VITE_CESIUM_ION_PUBLIC_TOKEN: ${{ vars.CESIUM_ION_PUBLIC_TOKEN }}
       - name: Validate published files
         run: |
           test -f dist/index.html
