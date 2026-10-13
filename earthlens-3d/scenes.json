@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "scenes": [
     {
       "id": "wilhelmina-khr",
@@ -14,6 +14,23 @@
       "source": "https://github.com/bertt/3DGS-3DTiles-demo",
       "licenseNote": "External third-party sample. Load only from the upstream provider; redistribution rights of the captured asset are not asserted.",
       "verifiedFrom": "3D Tiles root ECEF position [3911500.239905, 351825.9731979, 5008787.136998] = 52.087424N 5.139727E; glTF extensionsRequired: KHR_gaussian_splatting + KHR_gaussian_splatting_compression_spz_2."
+    },
+    {
+      "id": "redmond-campus-khr",
+      "name": "Microsoft Redmond Campus · Cesium Gaussian Splat LOD",
+      "longitude": -122.141186,
+      "latitude": 47.644605,
+      "activationRadiusMeters": 1500,
+      "activationZoom": 16.25,
+      "returnHeightMeters": 2900,
+      "type": "cesium-ion-khr",
+      "assetId": 4547222,
+      "maximumScreenSpaceError": 16,
+      "cameraRangeMeters": 185,
+      "source": "https://cesium.com/learn/cesiumjs-learn/3d-guassian-splat-tilesets-lods/",
+      "licenseNote": "Official publicly viewable Cesium ion teaching asset. Hosted and subject to Cesium ion public asset/evaluation token restrictions; unlimited access is not guaranteed.",
+      "verifiedFrom": "Cesium tutorial gives asset ID 4547222 and camera [-122.141186, 47.644605, 170.48] at Microsoft Redmond Campus. Captured with 20,169 images; area approximately 3.7 km2."
     }
-  ]
+  ],
+  "description": "Georeferenced photographic Gaussian Splat scene registry. These are REAL pre-captured scenes, not procedural reconstructions. OSM 3D buildings remain available elsewhere."
 }
