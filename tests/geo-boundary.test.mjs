@@ -13,7 +13,8 @@ const tailwindConfig = read('tailwind.config.js')
 const pkg = JSON.parse(read('package.json'))
 
 test('runtime dependencies are pinned to the maintained Next 16 release line', () => {
-  assert.equal(pkg.dependencies.next, '16.3.5')
+  assert.equal(pkg.dependencies.next, '16.4.0')
+  assert.equal(pkg.devDependencies['eslint-config-next'], '16.4.0')
   assert.equal(pkg.dependencies.react, '19.3.0')
   assert.equal(pkg.dependencies['react-dom'], '19.3.0')
   assert.equal(pkg.engines?.node, '22.x')
