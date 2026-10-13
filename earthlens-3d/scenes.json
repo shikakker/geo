@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 3,
+  "scenes": [
+    {
+      "id": "wilhelmina-khr",
+      "name": "Wilhelmina · KHR Gaussian Splat demo",
+      "longitude": 5.139727,
+      "latitude": 52.087424,
+      "activationRadiusMeters": 210,
+      "activationZoom": 17.2,
+      "returnHeightMeters": 320,
+      "type": "khr-3dtiles",
+      "url": "https://bertt.github.io/3DGS-3DTiles-demo/tileset-data/tileset.json",
+      "source": "https://github.com/bertt/3DGS-3DTiles-demo",
+      "licenseNote": "External third-party sample. Load only from the upstream provider; redistribution rights of the captured asset are not asserted.",
+      "verifiedFrom": "3D Tiles root ECEF position [3911500.239905, 351825.9731979, 5008787.136998] = 52.087424N 5.139727E; glTF extensionsRequired: KHR_gaussian_splatting + KHR_gaussian_splatting_compression_spz_2.",
+      "cameraRangeMeters": 0
+    },
+    {
+      "id": "redmond-campus-khr",
+      "name": "Microsoft Redmond Campus · Cesium Gaussian Splat LOD",
+      "longitude": -122.141186,
+      "latitude": 47.644605,
+      "activationRadiusMeters": 1500,
+      "activationZoom": 16.25,
+      "returnHeightMeters": 2900,
+      "type": "cesium-ion-khr",
+      "assetId": 4547222,
+      "maximumScreenSpaceError": 16,
+      "cameraRangeMeters": 200,
+      "source": "https://cesium.com/learn/cesiumjs-learn/3d-guassian-splat-tilesets-lods/",
+      "licenseNote": "Official publicly viewable Cesium ion teaching asset. Hosted and subject to Cesium ion public asset/evaluation token restrictions; unlimited access is not guaranteed.",
+      "verifiedFrom": "Cesium tutorial gives asset ID 4547222 and camera [-122.141186, 47.644605, 170.48] at Microsoft Redmond Campus. Captured with 20,169 images; area approximately 3.7 km2.",
+      "cameraHeadingDegrees": 100,
+      "cameraPitchDegrees": -25,
+      "cameraHeightMeters": 170
+    },
+    {
+      "id": "tokyo-chiyoda-plateau",
+      "name": "Tokyo Chiyoda · PLATEAU LOD2 3D City Model",
+      "longitude": 139.7671,
+      "latitude": 35.6812,
+      "activationRadiusMeters": 5500,
+      "activationZoom": 15.6,
+      "returnHeightMeters": 6000,
+      "cameraHeightMeters": 2300,
+      "cameraRangeMeters": 900,
+      "type": "3dtiles-model",
+      "url": "https://api.plateauview.mlit.go.jp/datacatalog/3dtiles/13101-bldg-lod2-latest/tileset.json",
+      "source": "https://docs.plateauview.mlit.go.jp/datasets/3d-tiles/",
+      "licenseNote": "Japan MLIT Project PLATEAU city models, CC BY 4.0 / government open data license as applicable. Texture availability varies by object and coverage. PLATEAU experimental public delivery may change.",
+      "verifiedFrom": "Official MLIT PLATEAU 3D Tiles documentation provides Chiyoda Ward (code 13101) CesiumJS tileset URL. Geoposition near Tokyo Station inside Chiyoda-ku.",
+      "orthoUrl": "https://tile.plateauview.mlit.go.jp/tiles/plateau-ortho-2023/{z}/{x}/{y}.png",
+      "orthoAttribution": "Project PLATEAU / MLIT Japan (2023 orthophotography)"
+    },
+    {
+      "id": "japan-plateau-cities",
+      "name": "Japan · PLATEAU City Digital Twins (national multi-city LOD)",
+      "longitude": 139.7671,
+      "latitude": 35.6812,
+      "bounds": [
+        122,
+        24,
+        146,
+        46
+      ],
+      "activationRadiusMeters": 25000,
+      "activationZoom": 15.9,
+      "returnHeightMeters": 8000,
+      "cameraHeightMeters": 3000,
+      "cameraRangeMeters": 1200,
+      "type": "3dtiles-region",
+      "url": "https://api.plateauview.mlit.go.jp/datacatalog/3dtiles/all-bldg-maxlod2-latest/tileset.json",
+      "source": "https://docs.plateauview.mlit.go.jp/api/rest/operations/datacatalog3dtilesspectilesetjson/",
+      "licenseNote": "Multiple municipality open data via MLIT; no global 3D coverage outside participating Japanese cities. Root 3D Tiles endpoint can be heavy; third-party service is experimental.",
+      "verifiedFrom": "Official Japan MLIT documentation defines composite nationwide 3D Tiles API and maxlod2/latest selectors. Coverage and available LOD differ among municipalities."
+    }
+  ],
+  "description": "Georeferenced open 3D dataset catalog: global OSM geometry is always available; high-detail KHR Gaussian and Japanese PLATEAU 3D Tiles appear automatically at applicable locations."
+}

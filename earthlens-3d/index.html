@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#091713"><meta name="description" content="EarthLens 3D — карта мира с объёмными зданиями, рельефом и автоматическими Gaussian Splat-сценами.">
+<title>EarthLens 3D — карта в объёме</title>
+<link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
+
+<link rel="stylesheet" href="./styles.css">
+</head><body>
+<main id="app" class="app">
+<div id="map" aria-label="Карта мира: прокрутите для приближения"></div>
+<div id="cesium-scene" class="cesium-stage" aria-label="Детальная сцена KHR Gaussian Splatting" aria-hidden="true"></div>
+<div id="loading" class="loading"><span class="spinner"></span><span id="loading-text">EARTHLENS 3D · ПОДКЛЮЧЕНИЕ КАРТЫ</span></div>
+<header class="bar glass">
+  <a href="./" class="brand" aria-label="EarthLens 3D — главная"><span class="brand-orb">◉</span><span>EARTH<b>LENS</b><sup>3D</sup></span></a>
+  <form id="place-search" class="search-form" role="search" autocomplete="off">
+    <span class="search-icon">⌕</span><input type="search" id="search-text" placeholder="Найти место на Земле…" minlength="2" maxlength="160" required aria-label="Найти место">
+    <button type="submit" aria-label="Искать место">↗</button>
+    <div id="search-results" class="search-results" hidden></div>
+  </form>
+  <div class="badge-live"><i></i><span>OPEN GEODATA</span></div>
+</header>
+<div class="focus-card glass" id="focus-card">
+  <div class="kicker">ТЕХНОЛОГИЯ · KHR GAUSSIAN SPLATTING</div>
+  <button type="button" id="focus-dismiss" class="focus-dismiss" title="Скрыть подсказку" aria-label="Скрыть подсказку">×</button>
+  <strong>Трёхмерная Земля</strong>
+  <p id="guidance">Масштабируйте, наклоняйте и вращайте карту. Геометрические 3D-здания появляются автоматически; Gaussian-сцены — где есть реальные сканы.</p>
+  <div class="focus-actions"><button id="sample-fly" class="sample-btn" type="button">✳ Gaussian-сцены</button><span id="quality-label">ГЕОМЕТРИЯ · OSM</span></div>
+</div>
+<div class="corner-toolbar glass" aria-label="Управление камерой">
+<button id="style-cycle" title="Переключить бесплатный слой карты" aria-label="Переключить картографический стиль">СЛОЙ</button>
+<button id="tilt" title="Переключить перспективу 2D/3D" aria-label="Переключить перспективу">3D</button>
+<button id="reset-view" title="Север сверху" aria-label="Север сверху">⌖</button>
+<button id="share" title="Копировать ссылку на карту" aria-label="Копировать ссылку">↗</button>
+</div>
+<div id="geo-card" class="geo-card glass" hidden></div>
+<div id="splat-banner" class="splat-banner glass" hidden>
+  <span class="splat-pulse">✳</span>
+  <div class="splat-message"><b id="scene-title">3D-скан загружается</b><span id="scene-description">Автоматическая подгрузка реальной фотосцены</span></div>
+  <button id="exit-splat" type="button" title="Вернуться на общую карту">К КАРТЕ ↗</button>
+</div>
+<nav class="city-dock glass" id="city-dock" aria-label="Места с объёмной картой">
+  <span class="city-dock-label">3D МЕСТА</span>
+  <button type="button" class="city-go" data-lon="-73.9853" data-lat="40.7487" data-zoom="16.45" title="3D-небоскрёбы Нью-Йорка">Нью-Йорк</button>
+  <button type="button" class="city-go" data-lon="13.405" data-lat="52.52" data-zoom="16.55">Берлин</button>
+  <button type="button" class="city-go" data-lon="139.7671" data-lat="35.6812" data-zoom="16.0" title="PLATEAU LOD2: текстурированные 3D-здания района Тиёда">3D Токио</button>
+  <button type="button" class="city-go" data-lon="55.2744" data-lat="25.1972" data-zoom="16.55">Дубай</button>
+  <button type="button" class="city-go" data-scene="tokyo-chiyoda-plateau" title="PLATEAU 3D Tiles LOD2, реальные модели Японии">▰ PLATEAU</button>
+  <button type="button" class="city-go scan-go" data-scene="redmond-campus-khr" title="Фотореалистичный KHR Gaussian Splat">✳ Редмонд</button>
+  <button type="button" class="city-go scan-go" data-scene="wilhelmina-khr" title="Фотореалистичный KHR Gaussian Splat">✳ Утрехт</button>
+</nav>
+<footer class="status glass">
+<span class="status-geo"><i class="green-dot"></i><span id="coords">52.08742°N · 5.13973°E</span></span>
+<span class="separator"></span><span id="zoom-label">ZOOM 14.5</span>
+<span class="separator optional"></span><span id="mode-label" class="optional">MAP</span>
+<span class="grow"></span><span id="layers-label">OPENFREEMAP / OSM</span>
+</footer>
+<div id="toast" class="toast" aria-live="polite" role="status"></div>
+</main>
+<script type="module" src="./app.js"></script>
+</body></html>

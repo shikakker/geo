@@ -1,0 +1,76 @@
+{
+  "version": 2,
+  "readme": "Ten permissively licensed OSS libraries identified; core MapLibre and Leaflet code is locally bundled on Vercel. Remote tile/data services are NOT unlimited by virtue of OSS licenses. OpenFreeMap publicly states unlimited map views but no SLA; OSM official raster tiles permit only compliant fair use.",
+  "libraries": [
+    {
+      "name": "MapLibre GL JS",
+      "url": "https://github.com/maplibre/maplibre-gl-js",
+      "license": "BSD-3-Clause",
+      "role": "Self-hosted Vite-bundled v6 renderer with explicit locally bundled Web Worker; 5 no-key OpenFreeMap styles",
+      "status": "active-primary"
+    },
+    {
+      "name": "Leaflet",
+      "url": "https://github.com/Leaflet/Leaflet",
+      "license": "BSD-2-Clause",
+      "role": "Self-hosted 2D map renderer when WebGL or OpenFreeMap vector styles fail; OSM public raster tiles are limited-use",
+      "status": "active-fallback"
+    },
+    {
+      "name": "CesiumJS",
+      "url": "https://github.com/CesiumGS/cesium",
+      "license": "Apache-2.0",
+      "role": "Native KHR_gaussian_splatting + 3D Tiles renderer, lazy-loaded",
+      "status": "runtime-on-KHR-scene"
+    },
+    {
+      "name": "maplibre-gl-splat",
+      "url": "https://github.com/opengeos/maplibre-gl-splat",
+      "license": "MIT",
+      "role": "Georeferenced raw Gaussian splat scene adapter, lazy-loaded",
+      "status": "runtime-on-raw-splat"
+    },
+    {
+      "name": "Spark",
+      "url": "https://github.com/Spatial-Logic/spark",
+      "license": "MIT",
+      "role": "WebGL Gaussian splat renderer used by maplibre-gl-splat",
+      "status": "transitive-of-raw-splat"
+    },
+    {
+      "name": "Three.js",
+      "url": "https://github.com/mrdoob/three.js",
+      "license": "MIT",
+      "role": "Scene graph / rendering used by maplibre-gl-splat",
+      "status": "transitive-of-raw-splat"
+    },
+    {
+      "name": "maplibre-three-plugin",
+      "url": "https://github.com/dvt3d/maplibre-three-plugin",
+      "license": "MIT",
+      "role": "MapLibre / Three geographic coordinates bridge",
+      "status": "transitive-of-raw-splat"
+    },
+    {
+      "name": "PMTiles",
+      "url": "https://github.com/protomaps/PMTiles",
+      "license": "BSD-3-Clause",
+      "role": "Optional self-hosted vector tile archives; no external CDN import on main map",
+      "status": "candidate-not-bundled"
+    },
+    {
+      "name": "3d-tiles-renderer",
+      "url": "https://github.com/NASA-AMMOS/3DTilesRendererJS",
+      "license": "MIT",
+      "role": "Alternative 3D Tiles streaming engine",
+      "status": "candidate-not-bundled"
+    },
+    {
+      "name": "GaussianSplats3D",
+      "url": "https://github.com/mkkellogg/GaussianSplats3D",
+      "license": "MIT",
+      "role": "Alternative standalone Splat/PLY/KSplat viewer",
+      "status": "candidate-not-bundled"
+    }
+  ]
+}

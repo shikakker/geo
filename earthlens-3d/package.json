@@ -1,0 +1,26 @@
+{
+  "name": "earthlens-3d",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "Real 3D world map with OpenStreetMap building geometry, 2.5D fallback and georeferenced KHR Gaussian scenes",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build && node scripts/build.mjs",
+    "preview": "vite preview --host 0.0.0.0",
+    "check": "node --check app.js && node --check scripts/build.mjs && node --test tests/integration.test.mjs",
+    "test": "node --test tests/integration.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "leaflet": "1.9.4",
+    "maplibre-gl": "6.14.0",
+    "@mapbox/vector-tile": "2.0.5",
+    "pbf": "4.0.1"
+  },
+  "devDependencies": {
+    "vite": "7.1.9"
+  }
+}
