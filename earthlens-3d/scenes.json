@@ -13,7 +13,8 @@
       "url": "https://bertt.github.io/3DGS-3DTiles-demo/tileset-data/tileset.json",
       "source": "https://github.com/bertt/3DGS-3DTiles-demo",
       "licenseNote": "External third-party sample. Load only from the upstream provider; redistribution rights of the captured asset are not asserted.",
-      "verifiedFrom": "3D Tiles root ECEF position [3911500.239905, 351825.9731979, 5008787.136998] = 52.087424N 5.139727E; glTF extensionsRequired: KHR_gaussian_splatting + KHR_gaussian_splatting_compression_spz_2."
+      "verifiedFrom": "3D Tiles root ECEF position [3911500.239905, 351825.9731979, 5008787.136998] = 52.087424N 5.139727E; glTF extensionsRequired: KHR_gaussian_splatting + KHR_gaussian_splatting_compression_spz_2.",
+      "cameraRangeMeters": 105
     },
     {
       "id": "redmond-campus-khr",
@@ -26,10 +27,13 @@
       "type": "cesium-ion-khr",
       "assetId": 4547222,
       "maximumScreenSpaceError": 16,
-      "cameraRangeMeters": 185,
+      "cameraRangeMeters": 200,
       "source": "https://cesium.com/learn/cesiumjs-learn/3d-guassian-splat-tilesets-lods/",
       "licenseNote": "Official publicly viewable Cesium ion teaching asset. Hosted and subject to Cesium ion public asset/evaluation token restrictions; unlimited access is not guaranteed.",
-      "verifiedFrom": "Cesium tutorial gives asset ID 4547222 and camera [-122.141186, 47.644605, 170.48] at Microsoft Redmond Campus. Captured with 20,169 images; area approximately 3.7 km2."
+      "verifiedFrom": "Cesium tutorial gives asset ID 4547222 and camera [-122.141186, 47.644605, 170.48] at Microsoft Redmond Campus. Captured with 20,169 images; area approximately 3.7 km2.",
+      "cameraHeadingDegrees": 100,
+      "cameraPitchDegrees": -25,
+      "cameraHeightMeters": 170
     },
     {
       "id": "tokyo-chiyoda-plateau",
