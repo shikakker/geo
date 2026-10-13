@@ -4,6 +4,17 @@ EarthLens now prioritizes the **map itself**. As the user zooms, detail increase
 
 Production: https://earthlens-3d.vercel.app
 
+## Map reliability — 2026-10-13 hotfix
+
+The original map could render as a blank screen because MapLibre GL JS 6 has no default export, and because its standalone Web Worker must be explicitly bundled by Vite. The fix now:
+- Bundles MapLibre GL JS 6.14, its CSS and the worker **locally** from npm dependencies; entry uses a namespace import and worker import with the documented **?worker&url** suffix.
+- Uses five keyless OpenFreeMap styles (Liberty, Bright, Positron, Fiord, Dark) via the compact "СЛОЙ" button.
+- Watches startup: if WebGL is absent, the remote style/worker fails, or map fails to become ready in 12 seconds, switches to a **locally bundled Leaflet** viewer with **official OSM raster tiles**. It preserves search, location, share URLs and the Gaussian-scene catalog.
+- Keeps original map viewport dimensions with fully bundled CSS, and never indefinitely hides the page behind the loading indicator when a WebGL render failure occurs.
+- Node unit/integration tests verify the real worker import, offline-bundled JS/CSS, automatic fallback and source registry.
+- Important: OSM raster tile server is a fair-use fallback only, **not** an unlimited tile CDN; see https://operations.osmfoundation.org/policies/tiles/. OpenFreeMap is primary and states no map-view limits, but no SLA.
+
+
 ## Progressive zoom
 
 1. MapLibre uses OpenFreeMap vector tiles as global basemap.
@@ -32,22 +43,22 @@ See open-source-stack.json for licenses, source links, precise component status 
 
 | Library | Role | Status |
 | --- | --- | --- |
-| MapLibre GL JS | Basemap, OSM extrusions, DEM terrain | Active |
+| MapLibre GL JS | Basemap, OSM extrusions, DEM terrain | Active, locally bundled |
 | CesiumJS | KHR glTF / 3D Tiles with LOD | Active only near KHR samples |
 | maplibre-gl-splat | Raw splat GIS bridge | Lazy raw scene adapter |
 | Spark | Gaussian splat renderer | Transitive dependency of raw adapter |
 | Three.js | Scene graphs and WebGL | Transitive dependency of raw adapter |
 | maplibre-three-plugin | MapLibre/Three coordinate bridge | Transitive dependency of raw adapter |
-| PMTiles | Static archive tile protocol | Registered on boot |
+| Leaflet | OpenStreetMap raster fallback (fair use) | Active, locally bundled |
 | 3d-tiles-renderer | Alternative 3D Tiles streaming | Candidate, not bundled |
-| 3D Tiles RendererJS 3DGS Plugin | Alternative KHR/SPZ tiles | Candidate, not bundled |
+| PMTiles | Optional self-hosted tile archive | Candidate, not bundled |
 | GaussianSplats3D | Standalone raw splat fallback | Candidate, not bundled |
 
 Open-source code may be self-hosted without per-view API pricing; **this does not imply unlimited free hosted data, downloads, tiles, or photos.**
 
 ## Local usage
 
-Requires Node.js >=20.
+Requires Node.js >=20. Vite production bundles MapLibre JS/CSS/worker and Leaflet fallback locally, removing the initial CDN dependency.
 
 ~~~sh
 npm test
