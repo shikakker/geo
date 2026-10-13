@@ -1,37 +1,78 @@
-# EarthLens 3D
+# EarthLens 3D — automatic map with Khronos Gaussian Splatting
 
-Experimental globe-to-street 3D exploration app.
+EarthLens now prioritizes the **map itself**. As the user zooms, detail increases automatically: vector basemap → OSM 3D extrusions and terrain → genuine registered Gaussian splat scene if one exists nearby. **No user uploads**.
 
-## Features
-- OpenFreeMap/MapLibre vector maps, building extrusions based on available OSM attributes.
-- Terrain relief from publicly hosted AWS/Mapzen Terrarium elevation tiles.
-- Place search via Nominatim (user-submitted only, no autocomplete).
-- Wikimedia Commons nearby geolocated photographs, linking to the source/license page.
-- Building information panel with height, known levels, and explicitly labeled estimates.
-- 2D/3D navigation, named destinations, camera URL sharing, responsive UI.
-- Optional satellite style using a user-provided MapTiler public API key saved in the local browser.
-- Experimental geolocated Gaussian-splat importer for preprocessed HTTPS scenes with CORS.
+Production: https://earthlens-3d.vercel.app
+
+## Progressive zoom
+
+1. MapLibre uses OpenFreeMap vector tiles as global basemap.
+2. At zoom 13+ OpenStreetMap building footprints are extruded according to available height attributes and a public Terrarium DEM provides terrain.
+3. The scene catalog (scenes.json) is queried as the camera moves. When both the location and threshold match:
+   - khr-3dtiles: native CesiumJS renderer loads glTF KHR_gaussian_splatting / KHR_gaussian_splatting_compression_spz_2 packaged as 3D Tiles LOD.
+   - raw-splat: lazy maplibre-gl-splat + Spark + Three.js renderer loads a pre-registered georeferenced .splat/.spz/.ply/.sog/.ksplat URL.
+4. Users can zoom out again. On missing scenes the true geometric OSM map remains; **no fabricated photorealistic façades**.
+5. Clicking a building reveals known height, known floor count or a clearly marked estimated count, and nearby geolocated Wikimedia Commons photos.
+
+## First pilot scene: Wilhelmina
+
+The pilot is a third-party public KHR 3D Tiles demo whose source includes the real ECEF transform:
+- Latitude: 52.087424; longitude: 5.139727 (Netherlands).
+- Source repository: https://github.com/bertt/3DGS-3DTiles-demo
+- Public tileset: https://bertt.github.io/3DGS-3DTiles-demo/tileset-data/tileset.json
+- Format: KHR_gaussian_splatting and KHR_gaussian_splatting_compression_spz_2.
+- Auto-load condition: center within 210 meters, zoom >= 17.2.
+- No copying/re-hosting: rendered from source. Redistribution rights for the captured object are **not assumed**.
+
+Start at the sample location, zoom in, and observe the renderer switching from OSM to a genuine 3D Tiles Gaussian scene. Streaming depends on third-party availability and browser GPU support.
+
+## Ten open-source libraries
+
+See open-source-stack.json for licenses, source links, precise component status and purpose. Not all ten are instantiated: redundant 3D engines must **not** run at the same time.
+
+| Library | Role | Status |
+| --- | --- | --- |
+| MapLibre GL JS | Basemap, OSM extrusions, DEM terrain | Active |
+| CesiumJS | KHR glTF / 3D Tiles with LOD | Active only near KHR samples |
+| maplibre-gl-splat | Raw splat GIS bridge | Lazy raw scene adapter |
+| Spark | Gaussian splat renderer | Transitive dependency of raw adapter |
+| Three.js | Scene graphs and WebGL | Transitive dependency of raw adapter |
+| maplibre-three-plugin | MapLibre/Three coordinate bridge | Transitive dependency of raw adapter |
+| PMTiles | Static archive tile protocol | Registered on boot |
+| 3d-tiles-renderer | Alternative 3D Tiles streaming | Candidate, not bundled |
+| 3D Tiles RendererJS 3DGS Plugin | Alternative KHR/SPZ tiles | Candidate, not bundled |
+| GaussianSplats3D | Standalone raw splat fallback | Candidate, not bundled |
+
+Open-source code may be self-hosted without per-view API pricing; **this does not imply unlimited free hosted data, downloads, tiles, or photos.**
+
+## Local usage
+
+Requires Node.js >=20.
+
+~~~sh
+npm test
+npm run check
+npm run build
+cd dist
+python3 -m http.server 8080
+~~~
+
+The static build includes Node test suite validation and copies scenes.json plus open-source-stack.json into dist.
 
 ## Deployment
-Existing GitHub repository: shikakker/geo. This app lives in earthlens-3d and does not overwrite the existing Next.js example.
-For a separate Vercel project: Root Directory **earthlens-3d**, framework **Other**, build command **npm run build**, output directory **dist**. No secret environment variables required.
 
-## Verification
-Run **npm run check** and **npm run build** using Node 20+. Static output is in dist. For local preview, serve dist via an HTTP static server. Requires internet access for external MapLibre JS ESM CDN and map providers.
+The project lives inside the existing shikakker/geo repository, directory earthlens-3d, without modifying the old root app. Vercel project name: earthlens-3d.
 
-## Data quality and limitations
-Global photo-real 3D imagery is **not** provided by OpenStreetMap building extrusions. The extrusion is geometric, not a photo-textured facade. Public OSM building height, actual floor counts and addresses vary by coverage. A floor value with **≈** means estimated from height, not a verified count. Nearby Wikimedia images may not depict the selected building exactly.
-Gaussian splatting is a separate **experimental** plugin and requires compatible preprocessed 3D data and working external rendering module; merely entering a JPG won't create a splat. Review the plugin compatibility and large scene performance before production use. Optional satellite imagery incurs third-party provider limits.
+Use framework Vite/static, build command npm run build, output dist. GitHub Login Connection must be linked in Vercel for automatic deployments on future Git pushes; direct file deployments require an explicit deploy.
 
-## Attribution and provider policy
-MapLibre: https://maplibre.org
-OpenFreeMap: https://openfreemap.org
-OSM: https://www.openstreetmap.org/copyright
-AWS terrain: https://registry.opendata.aws/terrain-tiles/
-Wikimedia Commons: https://commons.wikimedia.org
-Nominatim: https://operations.osmfoundation.org/policies/nominatim/
-MapTiler: https://www.maptiler.com
-Do not bulk download tiles, scrape Nominatim, or assume media can be redistributed. Attribution remains visible in the rendered map and on Commons source pages.
+## Sources / licensing
 
-## Roadmap
-Typed local package dependencies, georeferenced 3D Tiles ingestion, verification of photo licensing, caching/rate limiting with provider agreement, automated visual E2E testing, Gaussian plugin API validation.
+- Khronos specification: https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_gaussian_splatting/README.md
+- Khronos demo reference: https://www.youtube.com/watch?v=F-S-x0b9TrE
+- OSM: https://www.openstreetmap.org/copyright
+- OpenFreeMap: https://openfreemap.org
+- Elevation / Mapzen: https://registry.opendata.aws/terrain-tiles/
+- Nominatim (public server limit: <=1 query/second; no autocomplete): https://operations.osmfoundation.org/policies/nominatim/
+- Wikimedia Commons: https://commons.wikimedia.org
+
+Globally continuous **photorealistic** 3D content is not in these libraries. Photogrammetric 3D meshes or actual Gaussian-splat scenes must exist and be georeferenced, licensed, optimized and hosted. Future work: more verified scans, wider coverage, tile caching, provenance, LOD budgets and visual browser QA.
