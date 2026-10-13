@@ -41,6 +41,28 @@ jobs:
           test -f dist/scenes.json
           test -f dist/open-source-stack.json
           test -n "$(find dist/assets -type f -name '*.js' -print -quit)"
+      - name: Install headless Chromium for browser smoke tests
+        run: |
+          npm install --no-save playwright@1.56.1 --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Start local preview
+        run: |
+          npm run preview -- --port 4173 > /tmp/earthlens-preview.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173/ > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/earthlens-preview.log
+          exit 1
+      - name: Check real desktop and mobile map rendering
+        run: node tests/browser-smoke.mjs
+      - name: Upload map screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: earthlens-browser-smoke
+          path: earthlens-3d/screenshots
+          if-no-files-found: ignore
       - name: Save static build
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
