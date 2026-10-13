@@ -116,7 +116,7 @@ test('Automatic close-up transitions point to genuine KHR 3D Tiles scenes',async
  assert.match(js,/Cesium3DTileset\.fromIonAssetId\(scene\.assetId\)/);
  assert.match(js,/maximumScreenSpaceError/);
  const html=await readFile(new URL('index.html',root),'utf8');
- assert.match(html,/data-scene="redmond-campus-khr"/);
+ assert.doesNotMatch(html,/data-scene="redmond-campus-khr"/);
  assert.match(html,/data-scene="wilhelmina-khr"/);
 });
 
