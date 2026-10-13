@@ -1,12 +1,24 @@
-import maplibregl from 'https://esm.sh/maplibre-gl@6.14.0';
+import * as maplibregl from 'maplibre-gl';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import 'leaflet/dist/leaflet.css';
+// MapLibre v6 uses a separate worker. Vite must bundle it via ?worker&url.
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 const $ = id => document.getElementById(id);
-const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+const BASE_STYLES=[
+  {name:'Liberty',url:'https://tiles.openfreemap.org/styles/liberty'},
+  {name:'Bright',url:'https://tiles.openfreemap.org/styles/bright'},
+  {name:'Positron',url:'https://tiles.openfreemap.org/styles/positron'},
+  {name:'Fiord',url:'https://tiles.openfreemap.org/styles/fiord'},
+  {name:'Dark',url:'https://tiles.openfreemap.org/styles/dark'}
+];
+const MAP_STYLE=BASE_STYLES[0].url;
 const DEM_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
 const CESIUM_VERSION = '1.141';
 const CESIUM_JS = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VERSION + '/Build/Cesium/Cesium.js';
 const CESIUM_CSS = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VERSION + '/Build/Cesium/Widgets/widgets.css';
 const defaultView = { center: [5.139727, 52.087424], zoom: 15.1, pitch: 52, bearing: -15 };
-const app = { map:null, scenes:[], marker:[], terrainAdded:false, is3d:true, activeScene:null, sceneLoading:null, sceneEpoch:0, cesium:null, viewer:null, splatControl:null, splatIds:new Set(), photoRequest:0, geosearchAt:0, tiltInProgress:false, userCamera3d:true, pendingToken:0 };
+const app = { map:null, scenes:[], marker:[], terrainAdded:false, is3d:true, activeScene:null, sceneLoading:null, sceneEpoch:0, cesium:null, viewer:null, splatControl:null, splatIds:new Set(), photoRequest:0, geosearchAt:0, tiltInProgress:false, userCamera3d:true, pendingToken:0, fallbackActive:false, fallbackStarting:false, leaflet:null, leafletLib:null, mapReady:false, bootTimer:null, styleIndex:0, tileErrors:0, sceneDataLoaded:false };
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
 const fmt=n=>Number(n).toFixed(4);
 const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -43,7 +55,24 @@ function styleLoaded(){initOpenBuildings();initTerrain()}
 function maybeTilt(){if(app.tiltInProgress||!app.userCamera3d||app.activeScene||app.sceneLoading)return;const m=app.map,z=m.getZoom();if(z>=14.4&&m.getPitch()<35){app.tiltInProgress=true;m.easeTo({pitch:60,duration:620});setTimeout(()=>app.tiltInProgress=false,700)}else if(z<11.6&&m.getPitch()>24){app.tiltInProgress=true;m.easeTo({pitch:0,duration:620});setTimeout(()=>app.tiltInProgress=false,700)}}
 function cameraMoved(){showPosition();storeCamera();updateGuidance();maybeTilt();if(app.sceneLoading){const nearest=locateNearestScene();if(!nearest||nearest.id!==app.sceneLoading.id){app.sceneEpoch++;app.sceneLoading=null;cleanBanner()}return}const chosen=locateNearestScene();if(chosen)void enterScene(chosen)}
 function sampleFly(){const scene=app.scenes[0];if(!scene){toast('Геопривязанных Gaussian-сцен пока нет');return}app.map.flyTo({center:[scene.longitude,scene.latitude],zoom:16.9,pitch:63,bearing:-15,duration:2000});toast('Приблизьте ещё на один шаг: KHR-скан загрузится автоматически')}
-function drawScenePins(){for(const marker of app.marker)marker.remove();app.marker=[];for(const scene of app.scenes){const el=document.createElement('button');el.type='button';el.className='scan-marker';el.textContent='✳';el.title='Геопривязанный скан: '+scene.name;el.setAttribute('aria-label','Приблизиться к 3D-скану');el.addEventListener('click',()=>app.map.flyTo({center:[scene.longitude,scene.latitude],zoom:scene.activationZoom+0.1,pitch:65,bearing:-15,duration:1700}));app.marker.push(new maplibregl.Marker({element:el}).setLngLat([scene.longitude,scene.latitude]).addTo(app.map));}}
+function drawScenePins(){
+  for(const marker of app.marker)try{marker.remove()}catch{}
+  app.marker=[];
+  for(const scene of app.scenes){
+    const el=document.createElement('button');el.type='button';el.className='scan-marker';el.textContent='✳';
+    el.title='Геопривязанный 3D-скан: '+scene.name;
+    el.setAttribute('aria-label','Приблизиться к реальному 3D-скану');
+    const fly=()=>app.map.flyTo({center:[scene.longitude,scene.latitude],zoom:scene.activationZoom+0.1,pitch:65,bearing:-15,duration:1700});
+    if(app.fallbackActive&&app.leafletLib&&app.leaflet){
+      const div=app.leafletLib.divIcon({className:'leaflet-scan-icon',html:'<span class="scan-marker">✳</span>',iconSize:[38,38],iconAnchor:[19,19]});
+      const marker=app.leafletLib.marker([scene.latitude,scene.longitude],{icon:div}).addTo(app.leaflet);
+      marker.on('click',fly);app.marker.push(marker);
+    }else{
+      el.addEventListener('click',fly);
+      app.marker.push(new maplibregl.Marker({element:el}).setLngLat([scene.longitude,scene.latitude]).addTo(app.map));
+    }
+  }
+}
 function showBuilding(e){if(app.activeScene)return;let feat;try{feat=app.map.queryRenderedFeatures(e.point,{layers:['earthlens-3d-buildings']})[0]}catch{}const p=feat?.properties||{};const h=Number(p.render_height??p.height);const height=Number.isFinite(h)&&h>0?h:null;const levels=Number(p['building:levels']??p.levels);const floors=Number.isFinite(levels)&&levels>0?Math.round(levels):null;const estimate=floors===null&&height!==null?Math.max(1,Math.round(height/3.2)):null;const n=p.name||p['name:en']||p.class||'Точка на карте';const html='<div class="geo-head"><b>'+escapeHtml(n)+'</b><button class="geo-close" type="button" aria-label="Закрыть">×</button></div><div class="geo-grid"><div class="geo-metric"><small>Высота</small><strong>'+(height===null?'—':height.toFixed(1)+' м')+'</strong></div><div class="geo-metric"><small>Этажность</small><strong>'+(floors!==null?floors:estimate!==null?'≈ '+estimate:'—')+'</strong></div></div><p class="geo-note">'+fmt(e.lngLat.lat)+'° / '+fmt(e.lngLat.lng)+'°. '+(estimate!==null?'≈ — расчётная этажность по высоте, не подтверждённая данными. ':'')+'Фотографии ниже относятся к ближайшим точкам, не обязательно к выбранному зданию.</p><div id="photo-strip" class="photo-strip"></div>';const card=$('geo-card');card.innerHTML=html;card.hidden=false;card.querySelector('.geo-close').addEventListener('click',()=>card.hidden=true);void loadNearbyPhotos(e.lngLat.lat,e.lngLat.lng,++app.photoRequest)}
 async function loadNearbyPhotos(lat,lon,token){const el=$('photo-strip');try{const qs=new URLSearchParams({action:'query',generator:'geosearch',ggscoord:lat+'|'+lon,ggsradius:'400',ggslimit:'8',ggsnamespace:'6',prop:'imageinfo',iiprop:'url',iiurlwidth:'160',format:'json',origin:'*'});const resp=await fetch('https://commons.wikimedia.org/w/api.php?'+qs,{signal:AbortSignal.timeout(8500)});if(!resp.ok)throw Error(resp.status);const data=await resp.json();if(token!==app.photoRequest)return;const photos=Object.values(data.query?.pages||{}).map(item=>({title:item.title?.replace(/^File:/,'')||'Фото',url:item.imageinfo?.[0]?.descriptionurl,img:item.imageinfo?.[0]?.thumburl})).filter(photo=>photo.url?.startsWith('https://')&&photo.img?.startsWith('https://'));if(!photos.length){el.innerHTML='<span class="geo-note">Фото рядом нет</span>';return}for(const photo of photos){const a=document.createElement('a');a.href=photo.url;a.target='_blank';a.rel='noopener noreferrer';const img=document.createElement('img');img.loading='lazy';img.alt=photo.title;img.src=photo.img;const label=document.createElement('span');label.textContent=photo.title.slice(0,22);a.append(img,label);el.append(a)}}catch(err){if(token===app.photoRequest)el.innerHTML='<span class="geo-note">Фотографии временно недоступны</span>'}}
 async function readScenes(){try{const r=await fetch('./scenes.json',{cache:'no-cache'});if(!r.ok)throw Error('scenes.json '+r.status);const data=await r.json();app.scenes=(data.scenes||[]).filter(s=>s&&typeof s.id==='string'&&Number.isFinite(s.latitude)&&Number.isFinite(s.longitude)&&Math.abs(s.latitude)<=85&&Math.abs(s.longitude)<=180&&Number.isFinite(s.activationZoom)&&typeof s.url==='string'&&s.url.startsWith('https://')&&['khr-3dtiles','raw-splat'].includes(s.type));console.info('Georeferenced 3D scene catalog:',app.scenes.length);drawScenePins();cameraMoved()}catch(err){console.warn('3D scene catalog is unavailable:',err);toast('Каталог Gaussian-сцен недоступен; геометрическая карта работает')}}
@@ -71,11 +100,113 @@ toast('Фотосцена из 3D Tiles загрузилась автомати�
 async function loadRawScene(scene,epoch){const lib=await import('https://esm.sh/maplibre-gl-splat@0.2.9?deps=maplibre-gl@6.14.0,three@0.186.1');if(epoch!==app.sceneEpoch)return;const Control=lib.GaussianSplatControl;if(typeof Control!=='function')throw Error('GaussianSplatControl unavailable');if(!app.splatControl){app.splatControl=new Control({collapsed:true,flyTo:false});app.map.addControl(app.splatControl,'top-right')}const layerId=await app.splatControl.loadSplat(scene.url,{longitude:scene.longitude,latitude:scene.latitude,altitude:scene.altitude||0,rotation:scene.rotation||[0,0,0],scale:scene.scale||1});if(epoch!==app.sceneEpoch){app.splatControl.removeSplat(layerId);return}app.splatIds.add(layerId);app.activeScene=scene;$('app').classList.remove('loading-splat');$('geo-card').hidden=true;banner(scene,'Gaussian Splatting · LIVE',scene.name);setMode('RAW 3DGS','SPATIAL GAUSSIAN SPLATS');toast('Геопривязанный Gaussian Splat загружен автоматически')}
 function exitScene(){app.sceneEpoch++;const current=app.activeScene;app.activeScene=null;app.sceneLoading=null;const stage=$('cesium-scene');stage.classList.remove('active');stage.setAttribute('aria-hidden','true');if(app.viewer){const v=app.viewer;app.viewer=null;setTimeout(()=>{try{if(!v.isDestroyed())v.destroy()}catch{}},700)}if(app.splatControl){for(const id of app.splatIds)try{app.splatControl.removeSplat(id)}catch{}app.splatIds.clear()}cleanBanner();setMode('3D DETAIL','OSM · ВЫСОТА ЗДАНИЙ');if(current){app.map.jumpTo({center:[current.longitude,current.latitude],zoom:16.5,pitch:63});toast('Возврат на общую карту. 3D-здания доступны при приближении.')}updateGuidance()}
 async function placeSearch(event){event.preventDefault();const query=$('search-text').value.trim();if(query.length<2)return;if(Date.now()-app.geosearchAt<1200){toast('Немного подождите перед следующим поиском');return}app.geosearchAt=Date.now();const box=$('search-results');box.hidden=false;box.textContent='Поиск места…';try{const params=new URLSearchParams({format:'jsonv2',q:query,limit:'5'});const res=await fetch('https://nominatim.openstreetmap.org/search?'+params,{headers:{Accept:'application/json'}});if(!res.ok)throw Error('Nominatim '+res.status);const data=await res.json();box.textContent='';if(!data.length){box.textContent='Ничего не найдено';return}for(const item of data){const lat=Number(item.lat),lon=Number(item.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const b=document.createElement('button');b.type='button';b.className='search-option';b.textContent=item.display_name;b.addEventListener('click',()=>{if(app.activeScene)exitScene();box.hidden=true;$('search-text').value=item.display_name.split(',')[0];app.map.flyTo({center:[lon,lat],zoom:15.8,pitch:60,bearing:-12,duration:1900})});box.append(b)}}catch(err){console.warn(err);box.textContent='Поиск временно недоступен'}}
-function setTilt(){app.userCamera3d=!app.userCamera3d;$('tilt').classList.toggle('active',app.userCamera3d);app.map.easeTo({pitch:app.userCamera3d?62:0,bearing:app.userCamera3d?-15:0,duration:650})}
-function boot(){if(!maplibregl.supported()){$('loading').textContent='Для EarthLens нужен браузер с WebGL';return}const map=new maplibregl.Map({container:'map',style:MAP_STYLE,...parseHash(),maxPitch:85,antialias:true,attributionControl:false,hash:false});app.map=map;import('https://esm.sh/pmtiles@4.5.0').then(({Protocol})=>{const archiveProtocol=new Protocol();maplibregl.addProtocol('pmtiles',archiveProtocol.tile);console.info('PMTiles protocol registered for self-hosted archives')}).catch(e=>console.warn('Optional PMTiles protocol unavailable',e));map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');map.addControl(new maplibregl.ScaleControl({unit:'metric'}),'bottom-left');map.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-right');map.on('load',()=>{$('loading').classList.add('hidden');styleLoaded();showPosition();updateGuidance();void readScenes()});map.on('style.load',styleLoaded);map.on('move',showPosition);map.on('moveend',cameraMoved);map.on('click',showBuilding);map.on('error',e=>{console.warn('Map data source:',e.error?.message||e.error)});
-$('place-search').addEventListener('submit',placeSearch);$('search-text').addEventListener('keydown',e=>{if(e.key==='Escape')$('search-results').hidden=true});$('sample-fly').addEventListener('click',sampleFly);
-$('tilt').addEventListener('click',setTilt);$('reset-view').addEventListener('click',()=>map.easeTo({bearing:0,duration:500}));$('share').addEventListener('click',async()=>{storeCamera();try{await navigator.clipboard.writeText(location.href);toast('Ссылка на ракурс скопирована')}catch{toast('Текущий адрес: '+location.href)}});
-$('exit-splat').addEventListener('click',exitScene);document.addEventListener('keydown',event=>{if(event.key==='Escape'&&app.activeScene)exitScene()});
-window.addEventListener('hashchange',()=>{if(app.activeScene)return;const v=parseHash();app.map.jumpTo(v)});
+function setTilt(){if(app.fallbackActive){toast('Резервная 2D-карта: для 3D необходим WebGL и векторный источник');return}app.userCamera3d=!app.userCamera3d;$('tilt').classList.toggle('active',app.userCamera3d);app.map.easeTo({pitch:app.userCamera3d?62:0,bearing:app.userCamera3d?-15:0,duration:650})}
+
+function cycleStyle(){
+ if(app.fallbackActive){toast('Работает резервный растровый слой OpenStreetMap');return}
+ app.styleIndex=(app.styleIndex+1)%BASE_STYLES.length;
+ const next=BASE_STYLES[app.styleIndex];
+ app.tileErrors=0;
+ app.map.setStyle(next.url);
+ $('layers-label').textContent='OPENFREEMAP · '+next.name.toUpperCase();
+ toast('Картографический слой: '+next.name);
 }
-try{boot()}catch(err){console.error(err);$('loading').textContent='Ошибка запуска карты: проверьте доступ к источникам геоданных'}
+function onMapReady(){
+ if(app.mapReady)return;
+ app.mapReady=true;clearTimeout(app.bootTimer);
+ $('loading').classList.add('hidden');
+ styleLoaded();showPosition();updateGuidance();
+ if(!app.sceneDataLoaded){app.sceneDataLoaded=true;void readScenes()}
+}
+// If the CDN/worker/style/WebGL fails, never leave the viewer behind a blocking loader.
+// Leaflet is locally bundled. Public OSM raster tiles are a *limited-use fallback*.
+async function activateRasterFallback(reason){
+ if(app.fallbackActive||app.fallbackStarting)return;
+ app.fallbackStarting=true;
+ clearTimeout(app.bootTimer);
+ console.warn('MapLibre fallback:',reason);
+ $('loading-text').textContent='ВКЛЮЧАЕМ РЕЗЕРВНЫЙ СЛОЙ КАРТЫ';
+ const center=app.map?.getCenter?.()||{lat:defaultView.center[1],lng:defaultView.center[0]};
+ const zoom=app.map?.getZoom?.()||defaultView.zoom;
+ let L;
+ try{L=await import('leaflet')}catch(err){
+   console.error('Leaflet import failed:',err);
+   $('loading-text').textContent='Карта недоступна. Проверьте Интернет и обновите страницу.';
+   app.fallbackStarting=false;return;
+ }
+ try{app.map?.remove?.()}catch(err){console.warn('Map cleanup',err)}
+ $('map').replaceChildren();
+ const raster=L.map('map',{zoomControl:false,attributionControl:true,minZoom:2,maxZoom:19,worldCopyJump:true,preferCanvas:true});
+ raster.setView([center.lat,center.lng],clamp(zoom,2,19),{animate:false});
+ let tileCount=0,tileErrors=0;
+ const tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+   attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
+   maxZoom:19,maxNativeZoom:19,crossOrigin:true,updateWhenIdle:true
+ }).addTo(raster);
+ tiles.on('tileload',()=>{tileCount++;$('loading').classList.add('hidden')});
+ tiles.on('tileerror',()=>{tileErrors++;if(tileErrors>=6&&tileCount===0){
+   $('loading-text').textContent='Сервер карт недоступен. Попробуйте обновить страницу или другую сеть.';
+   $('loading').classList.remove('hidden');
+ }});
+ L.control.zoom({position:'topright'}).addTo(raster);
+ app.fallbackActive=true;app.fallbackStarting=false;
+ app.leaflet=raster;app.leafletLib=L;
+ // Preserve map-level interactions and the georeferenced scene catalog.
+ app.map={
+   getCenter:()=>raster.getCenter(),getZoom:()=>raster.getZoom(),
+   getPitch:()=>0,getBearing:()=>0,
+   flyTo:({center,zoom:z})=>raster.flyTo([center[1],center[0]],clamp(z||raster.getZoom(),2,19),{duration:1.2}),
+   jumpTo:({center,zoom:z})=>raster.setView([center[1],center[0]],clamp(z||raster.getZoom(),2,19),{animate:false}),
+   easeTo:()=>{},
+   queryRenderedFeatures:()=>[],
+ };
+ raster.on('moveend',cameraMoved);
+ raster.on('click',e=>showBuilding({lngLat:{lat:e.latlng.lat,lng:e.latlng.lng},point:null}));
+ $('tilt').textContent='2D';
+ $('layers-label').textContent='OSM RASTER · РЕЗЕРВ';
+ $('guidance').textContent='Резервная карта OpenStreetMap активна. Она работает без WebGL, но объёмные здания доступны только в основном режиме.';
+ setMode('2D RASTER','РЕЗЕРВНЫЙ СЛОЙ');
+ showPosition();storeCamera();
+ drawScenePins();
+ if(!app.sceneDataLoaded){app.sceneDataLoaded=true;void readScenes()}
+ // Wait for an actual raster tile before removing the loading screen.
+ setTimeout(()=>{if(tileCount===0&&tileErrors===0){
+   $('loading-text').textContent='Резервная карта загружается медленно…';
+ }},9000);
+}
+function boot(){
+ $('place-search').addEventListener('submit',placeSearch);
+ $('search-text').addEventListener('keydown',e=>{if(e.key==='Escape')$('search-results').hidden=true});
+ $('sample-fly').addEventListener('click',sampleFly);
+ $('tilt').addEventListener('click',setTilt);
+ $('style-cycle').addEventListener('click',cycleStyle);
+ $('reset-view').addEventListener('click',()=>{if(app.fallbackActive)return;app.map.easeTo({bearing:0,duration:500})});
+ $('share').addEventListener('click',async()=>{storeCamera();try{await navigator.clipboard.writeText(location.href);toast('Ссылка на ракурс скопирована')}catch{toast('Адрес: '+location.href)}});
+ $('exit-splat').addEventListener('click',exitScene);
+ document.addEventListener('keydown',event=>{if(event.key==='Escape'&&app.activeScene)exitScene()});
+ window.addEventListener('hashchange',()=>{if(app.activeScene||!app.map)return;app.map.jumpTo(parseHash())});
+ // The recovery timer is armed before any external style request is made.
+ app.bootTimer=setTimeout(()=>{if(!app.mapReady)void activateRasterFallback('Map style did not become ready within 12 seconds')},12000);
+ if(!maplibregl.supported()){void activateRasterFallback('WebGL2 unavailable');return}
+ try{
+   const map=new maplibregl.Map({container:'map',style:MAP_STYLE,...parseHash(),maxPitch:85,antialias:true,attributionControl:false,hash:false});
+   app.map=map;
+   map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
+   map.addControl(new maplibregl.ScaleControl({unit:'metric'}),'bottom-left');
+   map.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-right');
+   map.on('load',onMapReady);
+   map.on('style.load',()=>{if(!app.fallbackActive)styleLoaded()});
+   map.on('move',showPosition);
+   map.on('moveend',cameraMoved);
+   map.on('click',showBuilding);
+   map.on('error',e=>{
+     const msg=e.error?.message||String(e.error||'unknown');
+     console.warn('Map data source:',msg);
+     if(!app.mapReady){
+       app.tileErrors++;
+       if(app.tileErrors>=8)void activateRasterFallback('Map resources repeatedly failed: '+msg.slice(0,120));
+     }
+   });
+ }catch(err){console.error('MapLibre init:',err);void activateRasterFallback(err.message||'WebGL map initialization failed')}
+}
+try{boot()}catch(err){console.error(err);void activateRasterFallback(err.message||'Unexpected map bootstrap failure')}
