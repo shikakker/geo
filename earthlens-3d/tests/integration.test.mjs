@@ -63,7 +63,9 @@ test('Primary map is bundled with correct MapLibre 6 worker setup',async()=>{
 test('Rendering recovers automatically from WebGL and provider failures',async()=>{
  const js=await readFile(new URL('app.js',root),'utf8');
  assert.match(js,/activateRasterFallback/);
- assert.match(js,/!maplibregl\.supported\(\)/);
+ assert.match(js,/!supportsWebGL2\(\)/);
+ assert.match(js,/function supportsWebGL2\(\)/);
+ assert.doesNotMatch(js,/maplibregl\.supported\(\)/);
  assert.match(js,/Map style did not become ready within 12 seconds/);
  assert.match(js,/import\('leaflet'\)/);
  assert.match(js,/https:\/\/tile\.openstreetmap\.org\/\{z\}\/\{x\}\/\{y\}\.png/);
