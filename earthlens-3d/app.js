@@ -143,7 +143,8 @@ async function activateRasterFallback(reason){
    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
    maxZoom:19,maxNativeZoom:19,crossOrigin:true,updateWhenIdle:true
  }).addTo(raster);
- tiles.on('tileload',()=>{tileCount++;$('loading').classList.add('hidden')});
+ tiles.on('tileload',()=>{tileCount++;if(tileCount>=4)$('loading').classList.add('hidden')});
+ tiles.on('load',()=>{if(tileCount>0)$('loading').classList.add('hidden')});
  tiles.on('tileerror',()=>{tileErrors++;if(tileErrors>=6&&tileCount===0){
    $('loading-text').textContent='Сервер карт недоступен. Попробуйте обновить страницу или другую сеть.';
    $('loading').classList.remove('hidden');
