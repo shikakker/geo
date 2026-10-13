@@ -1,5 +1,6 @@
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
+const sceneId=process.env.EARTHLENS_SCENE_ID||'tokyo-chiyoda-plateau';
 const browser=await chromium.launch({headless:true,args:['--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist','--disable-dev-shm-usage']});
 const page=await browser.newPage({viewport:{width:1280,height:850},deviceScaleFactor:1});
 const errors=[],providers=[],urls=[];
@@ -13,7 +14,7 @@ try{
   await page.goto(base,{waitUntil:'domcontentloaded',timeout:25000});
   await page.locator('#loading.hidden').waitFor({timeout:35000});
   console.log('Initial engine',JSON.stringify(await page.evaluate(()=>window.__earthlensDiagnostics?.())));
-  await page.locator('[data-scene="tokyo-chiyoda-plateau"]').click();
+  await page.locator('[data-scene="'+sceneId+'"]').click();
   await page.waitForTimeout(28000);
   const state=await page.evaluate(()=>({
     diagnostic:window.__earthlensDiagnostics?.(),
@@ -22,6 +23,6 @@ try{
     description:document.getElementById('scene-description')?.textContent,
     loading:document.getElementById('loading')?.className
   }));
-  await page.screenshot({path:'screenshots/earthlens-tokyo-plateau.png',animations:'disabled'});
-  console.log(JSON.stringify({type:'tokyo-plateau',state,errors:errors.slice(-12),providerFailures:providers.slice(-12),providerResponses:urls.slice(-12)}));
+  await page.screenshot({path:'screenshots/earthlens-'+sceneId+'.png',animations:'disabled'});
+  console.log(JSON.stringify({type:sceneId,state,errors:errors.slice(-12),providerFailures:providers.slice(-12),providerResponses:urls.slice(-12)}));
 }finally{await browser.close()}
