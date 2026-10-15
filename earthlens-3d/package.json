@@ -6,7 +6,7 @@
   "description": "Real 3D world map with OpenStreetMap building geometry, 2.5D fallback and georeferenced KHR Gaussian scenes",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build && node scripts/build.mjs",
+    "build": "npm run check && vite build && node scripts/build.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "check": "node --check app.js && node --check scripts/build.mjs && node --test tests/integration.test.mjs",
     "test": "node --test tests/integration.test.mjs"
