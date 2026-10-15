@@ -1,10 +1,13 @@
-const withTM = require('@vercel/examples-ui/transpile')()
-const { withCountryInfo } = require('./scripts/countries')
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'flagcdn.com',
+      },
+    ],
+  },
+}
 
-module.exports = withTM(
-  withCountryInfo({
-    images: {
-      domains: ['flagcdn.com'],
-    },
-  })
-)
+module.exports = nextConfig

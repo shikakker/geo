@@ -3,7 +3,9 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'leaflet/dist/leaflet.css';
 import {attachCanvasBuildingLayer} from './fallback-3d.js';
+import {budgetForScene} from './scene-resource-budget.mjs';
 import {LOD_PRESETS,isLodMode,lodSSE,applyLod,isSceneEnabled} from './cesium-lod.js';
+import {readStoredLod} from './lod-storage.mjs';
 // MapLibre v6 uses a separate worker. Vite must bundle it via ?worker&url.
 maplibregl.setWorkerUrl(maplibreWorkerUrl);
 const $ = id => document.getElementById(id);
@@ -23,7 +25,7 @@ const CESIUM_JS = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VER
 const CESIUM_CSS = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VERSION + '/Build/Cesium/Widgets/widgets.css';
 // Midtown is deliberately the starting point: 3D skyscrapers are unmistakable.
 const defaultView = { center: [-73.9853, 40.7487], zoom: 16.35, pitch: 67, bearing: -24 };
-const app = { map:null, scenes:[], marker:[], terrainAdded:false, is3d:true, activeScene:null, sceneLoading:null, sceneEpoch:0, cesium:null, viewer:null, splatControl:null, splatIds:new Set(), photoRequest:0, geosearchAt:0, tiltInProgress:false, userCamera3d:true, pendingToken:0, fallbackActive:false, fallbackStarting:false, leaflet:null, leafletLib:null, mapReady:false, bootTimer:null, styleIndex:0, tileErrors:0, sceneDataLoaded:false, cityMode:'osm-3d', canvasBuildings:null, globeActive:false, renderedBuildings:0, failedScenes:new Map(), sceneCooldownUntil:0, sceneEntry:null, sceneVisibleTiles:0, lodMode:isLodMode(localStorage.getItem('earthlens:lod'))?localStorage.getItem('earthlens:lod'):'auto', lodTileset:null, lodProgress:{pending:0,processing:0}, lodSource:null, lodDebug:false };
+const app = { map:null, scenes:[], marker:[], terrainAdded:false, is3d:true, activeScene:null, sceneLoading:null, sceneEpoch:0, cesium:null, viewer:null, splatControl:null, splatIds:new Set(), photoRequest:0, geosearchAt:0, tiltInProgress:false, userCamera3d:true, pendingToken:0, fallbackActive:false, fallbackStarting:false, leaflet:null, leafletLib:null, mapReady:false, bootTimer:null, styleIndex:0, tileErrors:0, sceneDataLoaded:false, cityMode:'osm-3d', canvasBuildings:null, globeActive:false, renderedBuildings:0, failedScenes:new Map(), sceneCooldownUntil:0, sceneEntry:null, sceneVisibleTiles:0, lodMode:readStoredLod(), lodTileset:null, lodProgress:{pending:0,processing:0}, lodSource:null, lodDebug:false };
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
 const fmt=n=>Number(n).toFixed(4);
 const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -170,13 +172,23 @@ function deviceForLod(){
     saveData:navigator.connection?.saveData===true||navigator.connection?.effectiveType==='2g'
   };
 }
+function applyBudgetedLod(tileset,scene){
+  const requested=applyLod(tileset,app.lodMode,deviceForLod());
+  // City-wide PLATEAU tilesets must not run at a GPU-intensive quality SSE=8.
+  if(scene?.type==='3dtiles-model'||scene?.type==='3dtiles-region'){
+    tileset.maximumScreenSpaceError=Math.max(requested,budgetForScene(scene).maximumScreenSpaceError);
+  }
+  return tileset.maximumScreenSpaceError;
+}
 function paintLodButtons(){
   for(const button of document.querySelectorAll('[data-lod]')){
     const on=button.dataset.lod===app.lodMode;
     button.classList.toggle('is-active',on);
     button.setAttribute('aria-pressed',String(on));
   }
-  const sse=lodSSE(app.lodMode,deviceForLod());
+  const requested=lodSSE(app.lodMode,deviceForLod());
+  const city=app.lodSource?.type==='3dtiles-model'||app.lodSource?.type==='3dtiles-region';
+  const sse=city?Math.max(requested,budgetForScene(app.lodSource).maximumScreenSpaceError):requested;
   $('lod-sse').textContent="SSE "+sse+"px";
   return sse;
 }
@@ -186,7 +198,7 @@ function showLodControls(tileset,scene,viewer){
   $('lod-controls').hidden=false;
   $('lod-debug').hidden=!new URLSearchParams(location.search).has('lodDebug');
   const sse=paintLodButtons();
-  applyLod(tileset,app.lodMode,deviceForLod());
+  applyBudgetedLod(tileset,scene);
   $('lod-state').textContent=scene.type==='cesium-ion-khr'?'Cesium ion · 3DGS':'3D Tiles · потоковый LOD';
   tileset.loadProgress.addEventListener((pending,processing)=>{
     if(app.lodTileset!==tileset)return;
@@ -200,7 +212,7 @@ function showLodControls(tileset,scene,viewer){
     console.warn("LOD tile failed:",error.message||error.url);
   });
   viewer.scene.requestRender();
-  console.info('Cesium LOD attached',scene.id,'SSE',sse);
+  console.info('Cesium LOD attached',scene.id,'SSE',tileset.maximumScreenSpaceError);
 }
 function hideLodControls(){
   app.lodTileset=null;app.lodSource=null;
@@ -216,7 +228,7 @@ function selectLod(mode){
   try{localStorage.setItem('earthlens:lod',mode)}catch{}
   const sse=paintLodButtons();
   if(app.lodTileset){
-    applyLod(app.lodTileset,mode,deviceForLod());
+    applyBudgetedLod(app.lodTileset,app.lodSource);
     $('lod-state').textContent='LOD '+LOD_PRESETS[mode]+' · SSE '+sse+' px';
     app.viewer?.scene.requestRender();
   }
@@ -247,6 +259,7 @@ async function enterScene(scene){
   }
 }
 async function loadKhrScene(scene,epoch){
+  const budget=budgetForScene(scene);
   const C=await getCesium();
   if(epoch!==app.sceneEpoch)return;
   const stage=$('cesium-scene');
@@ -257,7 +270,7 @@ async function loadKhrScene(scene,epoch){
     // OSM imagery gives orientation during asynchronous photogrammetric LOD streaming.
     const imagery=new C.ImageryLayer(new C.UrlTemplateImageryProvider({
       url:'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      maximumLevel:19,
+      maximumLevel:budget.maxImageryLevel,
       credit:new C.Credit('© OpenStreetMap contributors')
     }));
     viewer=new C.Viewer(stage,{
@@ -268,6 +281,9 @@ async function loadKhrScene(scene,epoch){
       infoBox:false,navigationHelpButton:false,sceneModePicker:false,
       selectionIndicator:false,timeline:false,shadows:false,shouldAnimate:false
     });
+    viewer.resolutionScale=budget.resolutionScale;
+    viewer.scene.globe.tileCacheSize=budget.globeTileCacheSize;
+    viewer.scene.globe.maximumScreenSpaceError=budget.globeScreenSpaceError;
     const request=scene.type==='cesium-ion-khr'
       ? C.Cesium3DTileset.fromIonAssetId(scene.assetId)
       : C.Cesium3DTileset.fromUrl(scene.url);
@@ -276,13 +292,15 @@ async function loadKhrScene(scene,epoch){
     ]);
     if(epoch!==app.sceneEpoch){viewer.destroy();return}
     viewer.scene.primitives.add(tileset);
-    tileset.maximumScreenSpaceError=lodSSE(app.lodMode,deviceForLod());
+    tileset.cacheBytes=budget.cacheBytes;
+    tileset.maximumCacheOverflowBytes=budget.maximumCacheOverflowBytes;
+    applyBudgetedLod(tileset,scene);
     if(scene.orthoUrl){
       // PLATEAU orthophotography complements actual 3D city meshes.
       // OSM remains the underlying imagery if the imagery service lacks coverage.
       try{
         const ortho=new C.UrlTemplateImageryProvider({
-          url:scene.orthoUrl,maximumLevel:19,
+          url:scene.orthoUrl,maximumLevel:budget.maxImageryLevel,
           credit:new C.Credit(scene.orthoAttribution||'© Project PLATEAU / MLIT Japan')
         });
         viewer.imageryLayers.addImageryProvider(ortho);

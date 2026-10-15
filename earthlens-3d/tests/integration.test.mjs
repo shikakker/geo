@@ -178,3 +178,42 @@ test('Cesium 3D Gaussian splat LOD presets implement tutorial SSE and token-gate
  const html=await readFile(new URL('index.html',root),'utf8');
  for(const mode of ['auto','performance','balanced','quality'])assert.ok(html.includes('data-lod="'+mode+'"'));
 });
+
+test('PLATEAU city layers apply finite memory and imagery budgets before rendering',async()=>{
+ let budgetForScene;
+ try{({budgetForScene}=await import('../scene-resource-budget.mjs'))}catch{}
+ assert.equal(typeof budgetForScene,'function','Scene resource-budget helper is required');
+ const city=budgetForScene({type:'3dtiles-model'});
+ assert.ok(city.cacheBytes>0&&city.cacheBytes<=96*1024*1024);
+ assert.ok(city.maximumCacheOverflowBytes>=0&&city.maximumCacheOverflowBytes<=64*1024*1024);
+ assert.ok(city.maxImageryLevel<=15);
+ assert.ok(city.globeTileCacheSize<=48);
+ assert.ok(city.globeScreenSpaceError>=8);
+ assert.ok(city.maximumScreenSpaceError>=32);
+ assert.ok(city.resolutionScale>0&&city.resolutionScale<=0.75);
+ const app=await readFile(new URL('app.js',root),'utf8');
+ assert.match(app,/import\s*\{\s*budgetForScene\s*\}\s*from\s*['"]\.\/scene-resource-budget\.mjs['"]/);
+ assert.match(app,/tileset\.cacheBytes\s*=\s*budget\.cacheBytes/);
+ assert.match(app,/tileset\.maximumCacheOverflowBytes\s*=\s*budget\.maximumCacheOverflowBytes/);
+ assert.match(app,/viewer\.scene\.globe\.maximumScreenSpaceError\s*=\s*budget\.globeScreenSpaceError/);
+ assert.match(app,/viewer\.resolutionScale\s*=\s*budget\.resolutionScale/);
+});
+ 
+test('PLATEAU city scene cache guard survives interactive LOD preset changes',async()=>{
+ const src=await readFile(new URL('app.js',root),'utf8');
+ assert.match(src,/function applyBudgetedLod\(tileset,scene\)/);
+ assert.match(src,/Math\.max\(requested,budgetForScene\(scene\)\.maximumScreenSpaceError\)/);
+ assert.match(src,/applyBudgetedLod\(app\.lodTileset,app\.lodSource\)/);
+});
+
+
+test('Map bootstrap survives blocked Web Storage and invalid stored LOD',async()=>{
+  const {readStoredLod}=await import('../lod-storage.mjs');
+  assert.equal(readStoredLod(()=>({getItem:()=> 'quality'})),'quality');
+  assert.equal(readStoredLod(()=>({getItem:()=> 'off'})),'auto');
+  assert.equal(readStoredLod(()=>({getItem:()=> {throw new DOMException('Storage blocked','SecurityError')}})),'auto');
+  assert.equal(readStoredLod(()=> {throw new DOMException('Property denied','SecurityError')}),'auto');
+  const app=await readFile(new URL('app.js',root),'utf8');
+  assert.match(app,/lodMode:readStoredLod\(\)/);
+  assert.doesNotMatch(app,/lodMode:isLodMode\(localStorage\.getItem/);
+});
