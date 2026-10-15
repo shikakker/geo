@@ -205,3 +205,15 @@ test('PLATEAU city scene cache guard survives interactive LOD preset changes',as
  assert.match(src,/Math\.max\(requested,budgetForScene\(scene\)\.maximumScreenSpaceError\)/);
  assert.match(src,/applyBudgetedLod\(app\.lodTileset,app\.lodSource\)/);
 });
+
+
+test('Map bootstrap survives blocked Web Storage and invalid stored LOD',async()=>{
+  const {readStoredLod}=await import('../lod-storage.mjs');
+  assert.equal(readStoredLod(()=>({getItem:()=> 'quality'})),'quality');
+  assert.equal(readStoredLod(()=>({getItem:()=> 'off'})),'auto');
+  assert.equal(readStoredLod(()=>({getItem:()=> {throw new DOMException('Storage blocked','SecurityError')}})),'auto');
+  assert.equal(readStoredLod(()=> {throw new DOMException('Property denied','SecurityError')}),'auto');
+  const app=await readFile(new URL('app.js',root),'utf8');
+  assert.match(app,/lodMode:readStoredLod\(\)/);
+  assert.doesNotMatch(app,/lodMode:isLodMode\(localStorage\.getItem/);
+});
