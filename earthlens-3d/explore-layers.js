@@ -56,6 +56,13 @@ function apiPopup(title,details='',photo=null){
  const p=document.createElement('p');p.className='explore-sub';p.textContent=details;panel.append(p);
  if(photo){const img=document.createElement('img');img.className='explore-camera-image';img.src=photo;img.alt=title;img.referrerPolicy='no-referrer';img.loading='lazy';panel.append(img)}
 }
+function weatherDescription(props){
+ const horizon=props.horizonHours?'прогноз +'+props.horizonHours+' ч':'текущие условия';
+ const sample=props.approximate
+  ?' · расчёт модели для '+Number(props.sampleLat).toFixed(3)+'°, '+Number(props.sampleLon).toFixed(3)+'° (рядом с маркером)':'';
+ const time=props.updated?' · '+props.updated+' UTC':'';
+ return 'Модель Open-Meteo · '+horizon+' · не измерение на месте'+sample+time;
+}
 function openDetail(feature){
  state.selectEpoch++;state.selectedFeature=feature;
  const p=feature.properties||{},coordinates=feature.geometry?.coordinates||[];
@@ -65,7 +72,7 @@ function openDetail(feature){
  const title=p['addr:housenumber']&&p['addr:street']?p['addr:street']+', '+p['addr:housenumber']:label;
  const kind=p._kind||'Место';
  if(kind==='weather'){
-   apiPopup('Погода · '+Number(lat).toFixed(3)+'°, '+Number(lon).toFixed(3)+'°', 'Модель Open-Meteo · '+(p.horizonHours?'прогноз +'+p.horizonHours+' ч':'текущие условия')+' · не измерение на месте');
+   apiPopup('Погода · '+Number(lat).toFixed(3)+'°, '+Number(lon).toFixed(3)+'°', weatherDescription(p));
    const details=document.createElement('div');details.className='explore-weather-grid';
    const metrics=[['Температура',p.temperature,'°C'],['Ощущается',p.feels,'°C'],['Ветер',p.wind,'км/ч'],['Направление ветра',p.windDirection,'° от севера'],['Осадки',p.precipitation,'мм'],['Облачность',p.clouds,'%'],['Влажность',p.humidity,'%'],['Давление',p.pressure,'гПа']];
    metrics.forEach(([key,value,unit])=>{if(value===null||value===undefined)return;const cell=document.createElement('div');cell.className='explore-weather-cell';const k=document.createElement('small');k.textContent=key;const v=document.createElement('b');v.textContent=String(Math.round(Number(value)*10)/10)+' '+unit;cell.append(k,v);details.append(cell)});
@@ -123,7 +130,7 @@ function updateWeatherCard(feature){
  const heading=panel.querySelector('.explore-detail-head strong');
  if(heading)heading.textContent='Погода · '+feature.geometry.coordinates[1].toFixed(3)+'°, '+feature.geometry.coordinates[0].toFixed(3)+'°';
  const subtitle=panel.querySelector('.explore-sub');
- if(subtitle)subtitle.textContent='Модель Open-Meteo · '+(p.horizonHours?'прогноз +'+p.horizonHours+' ч':'текущие условия')+' · не измерение на месте';
+ if(subtitle)subtitle.textContent=weatherDescription(p);
  const values={
   'Температура':[p.temperature,'°C'],'Ощущается':[p.feels,'°C'],'Ветер':[p.wind,'км/ч'],
   'Направление ветра':[p.windDirection,'° от севера'],'Осадки':[p.precipitation,'мм'],
