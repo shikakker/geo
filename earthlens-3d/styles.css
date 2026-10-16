@@ -264,3 +264,8 @@
 .build-version{font-size:9px;color:#95bca0;white-space:nowrap}
 @media(max-width:850px){.earthlens-help{padding:15px;max-height:85dvh}.build-version{display:none}}
 @media(prefers-reduced-motion:reduce){.earthlens-help *{transition:none!important;animation:none!important}}
+
+/* Compact mobile-first layer navigation leaves the globe visible. */
+.explore-panel.collapsed #explore-weather-hours,.explore-panel.collapsed #explore-camera-status,.explore-panel.collapsed #explore-quality-status{display:none!important}
+#explore-collapse[aria-expanded="false"]{background:#b3e9c1;color:#1b3a25;border-radius:7px;min-width:30px;min-height:30px}
+@media(max-width:600px){.explore-panel.collapsed{left:9px;top:78px;padding:7px 9px;width:auto;max-height:none}.explore-panel.collapsed .explore-header{gap:9px}}
