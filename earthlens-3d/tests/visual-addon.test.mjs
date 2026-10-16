@@ -11,7 +11,7 @@ const read=path=>readFile(new URL(path,root),'utf8');
 
 test('Thirty open source modules are distinct, version-pinned and lazy',async()=>{
  const pkg=JSON.parse(await read('package.json'));
- assert.ok(Number(pkg.version.split('.')[1])>=6,'Third library expansion needs v0.6 or newer');
+ assert.ok(Number(pkg.version.split('.')[0])>=1||Number(pkg.version.split('.')[1])>=6,'Third library expansion needs v0.6 or newer');
  assert.equal(GEO_ADDONS.length,10);
  assert.equal(GEO_ADDONS_NEXT.length,10);
  assert.equal(GEO_ADDONS_VISUAL.length,10);
