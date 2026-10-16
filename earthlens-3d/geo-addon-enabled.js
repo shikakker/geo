@@ -1,4 +1,4 @@
-// Activated extension: standalone SunCalc MIT astronomy calculations.
+// Activated extension: standalone SunCalc permissively licensed astronomy calculations.
 // No remote API: load the module only when a user opens the weather details.
 export const GEO_ENABLED_LIBRARIES=Object.freeze({
   "suncalc":()=>import('suncalc')
