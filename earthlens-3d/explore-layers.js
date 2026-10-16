@@ -94,7 +94,11 @@ function openDetail(feature){
   if(!displayed)photos.replaceChildren();
   for(const picture of batch){
    const a=document.createElement('a');a.href=picture.url;a.target='_blank';a.rel='noopener noreferrer';a.title=picture.provider+' · '+picture.license;
-   const img=document.createElement('img');img.src=picture.img;img.loading='lazy';img.alt=picture.title;img.referrerPolicy='no-referrer';
+   const img=document.createElement('img');img.loading='lazy';img.alt=picture.title;img.referrerPolicy='no-referrer';
+   img.className='explore-photo-progress';img.decoding='async';
+   img.addEventListener('load',()=>img.classList.add('is-loaded'),{once:true});
+   img.addEventListener('error',()=>{img.classList.add('is-unavailable');img.alt='Превью недоступно — открыть источник';},{once:true});
+   img.src=picture.img;
    const s=document.createElement('span');s.textContent=picture.provider;
    a.append(img,s);photos.append(a);displayed++;if(displayed>=30)break;
   }
