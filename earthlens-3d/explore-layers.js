@@ -38,6 +38,7 @@ const providers=[
  {id:'yandex',name:'Яндекс Недвижимость',url:(lat,lon)=>'https://realty.yandex.ru/?text='+encodeURIComponent(lat+','+lon)}
 ];
 function apiPopup(title,details='',photo=null){
+ state.photoController?.abort();
  const panel=el('explore-detail');panel.hidden=false;
  panel.replaceChildren();
  const head=document.createElement('div');head.className='explore-detail-head';
@@ -216,24 +217,58 @@ function draw(){
 }
 async function load(){
  if(!state.map||!el('explore-panel'))return;
- if(state.map.getZoom()<13){state.features=[];state.cameraFeatures=[];draw();return}
- state.controller?.abort();const ctl=new AbortController();state.controller=ctl;
- const c=state.map.getCenter(),query=overpassQuery(Number(c.lat.toFixed(4)),Number(c.lng.toFixed(4)),state.map.getZoom());
+ const center=state.map.getCenter(),zoom=state.map.getZoom();
  const seq=++state.seq;
- if(query){
-  const key=query.replace(/-?\d+\.\d+/g,''); // cache is deliberately NOT keyed on this lossy value.
-  void key;
-  try{
-   const resp=await fetch(OVERPASS,{method:'POST',body:new URLSearchParams({data:query}),signal:AbortSignal.any([ctl.signal,AbortSignal.timeout(20000)])});
-   if(!resp.ok)throw Error('Overpass HTTP '+resp.status);
-   const data=await resp.json();if(seq!==state.seq||ctl.signal.aborted)return;
-   state.features=(data.elements||[]).map(toFeature).filter(Boolean);
-  }catch(e){if(!ctl.signal.aborted)console.debug('OSM details unavailable',e)}
- }else state.features=[];
+ state.controller?.abort();
+ const ctl=new AbortController();state.controller=ctl;
+ // Keep already rendered markers visible while fresh data streams in.
+ draw();
+ el('explore-count').textContent='Обновляем слои…';
+ const hasOSM=zoom>=13&&[...state.active].some(x=>['addresses','trees','transport','traffic','realty'].includes(x));
+ const query=hasOSM?overpassQuery(Number(center.lat.toFixed(4)),Number(center.lng.toFixed(4)),zoom):'';
+ const osmKey=tileKey(center,zoom,state.active);
+ const osmTask=(async()=>{
+  if(!query)return [];
+  const cached=state.osmCache.get(osmKey);
+  if(cached)return cached;
+  const response=await fetch(OVERPASS,{
+   method:'POST',body:new URLSearchParams({data:query}),
+   signal:AbortSignal.any([ctl.signal,AbortSignal.timeout(19000)])
+  });
+  if(!response.ok)throw Error('Overpass HTTP '+response.status);
+  const data=await response.json();
+  if(ctl.signal.aborted)throw new DOMException('Aborted','AbortError');
+  const features=(data.elements||[]).map(toFeature).filter(Boolean);
+  state.osmCache.set(osmKey,features);
+  return features;
+ })();
+ const cameraTask=state.active.has('cameras')&&zoom>=13?cameras():Promise.resolve([]);
+ const weatherTask=state.active.has('weather')?getWeatherForView({center,zoom,signal:ctl.signal}):Promise.resolve([]);
+ const [osm,camera,weather]=await Promise.allSettled([osmTask,cameraTask,weatherTask]);
  if(seq!==state.seq||ctl.signal.aborted)return;
- state.cameraFeatures=await cameras();if(seq===state.seq)draw();
+ if(osm.status==='fulfilled')state.features=osm.value;
+ else if(hasOSM)console.debug('OSM detail source temporarily unavailable',osm.reason);
+ else state.features=[];
+ state.cameraFeatures=camera.status==='fulfilled'?camera.value:[];
+ if(weather.status==='fulfilled'){
+  // Colour ramp is supplied by an optional, lazy D3 module.
+  state.weatherFeatures=await Promise.all(weather.value.map(async feature=>({
+   ...feature,properties:{...feature.properties,_color:await temperatureColor(feature.properties.temperature)}
+  })));
+  state.weatherError=false;
+ }else{
+  state.weatherFeatures=[];state.weatherError=state.active.has('weather');
+  if(state.weatherError)console.debug('Weather provider temporarily unavailable',weather.reason);
+ }
+ if(seq!==state.seq||ctl.signal.aborted)return;
+ const note=el('explore-weather-status');
+ if(note){
+  note.hidden=!state.active.has('weather');
+  note.textContent=state.weatherError?'Погода временно недоступна':state.active.has('weather')?'Погода по модели Open-Meteo · обновление ≈15 мин':'';
+ }
+ draw();
 }
-function schedule(){clearTimeout(state.timer);state.timer=setTimeout(load,550)}
+function schedule(){clearTimeout(state.timer);state.timer=setTimeout(load,850)}
 function updateToggles(){
  document.querySelectorAll('[data-explore-layer]').forEach(btn=>{const active=state.active.has(btn.dataset.exploreLayer);btn.setAttribute('aria-pressed',String(active));btn.classList.toggle('on',active)});
 }
@@ -241,16 +276,30 @@ function satellite(){
  if(state.fallback){el('explore-satellite').setAttribute('aria-pressed','false');return}
  const map=state.map;if(!map?.getStyle||!map.isStyleLoaded?.())return;
  const id='earthlens-imagery-satellite',provider='earthlens-world-imagery';
- if(!map.getSource(provider))map.addSource(provider,{type:'raster',tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],tileSize:256,attribution:'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community'});
- if(!map.getLayer(id))map.addLayer({id,type:'raster',source:provider,paint:{'raster-opacity':1}},map.getStyle().layers.find(x=>x.type==='symbol')?.id);
- map.setLayoutProperty(id,'visibility',state.imagery?'visible':'none');
- el('explore-satellite').setAttribute('aria-pressed',String(state.imagery));
+ const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
+ try{
+  if(!map.getSource(provider))map.addSource(provider,{type:'raster',tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],tileSize:256,attribution:'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community'});
+  if(!map.getLayer(id))map.addLayer({id,type:'raster',source:provider,layout:{visibility:'none'},paint:{
+   'raster-opacity':0,'raster-opacity-transition':{duration:reduced?0:800,delay:0},
+   'raster-fade-duration':reduced?0:350
+  }},map.getStyle().layers.find(x=>x.type==='symbol')?.id);
+  if(state.imagery){
+   map.setLayoutProperty(id,'visibility','visible');
+   requestAnimationFrame(()=>{if(state.imagery&&map.getLayer(id))map.setPaintProperty(id,'raster-opacity',1)});
+  }else{
+   map.setPaintProperty(id,'raster-opacity',0);
+   setTimeout(()=>{if(!state.imagery&&map.getLayer(id))map.setLayoutProperty(id,'visibility','none')},reduced?0:850);
+  }
+  el('explore-satellite').setAttribute('aria-pressed',String(state.imagery));
+ }catch(error){console.debug('Imagery provider not ready',error)}
 }
 function buildPanel(){
  if(el('explore-panel'))return;
  const aside=document.createElement('aside');aside.id='explore-panel';aside.className='explore-panel glass';
- aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник</button><span id="explore-count">Готово</span></div><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
+ aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник</button><span id="explore-count">Готово</span></div><p id="explore-weather-status" class="explore-licence" hidden></p><details class="explore-oss"><summary>10 бесплатных GIS-библиотек</summary><span>Подключаются по необходимости, без API-квот</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
  el('app').append(aside);
+ const addonDetails=aside.querySelector('.explore-oss');
+ GEO_ADDONS.forEach(addon=>{const line=document.createElement('span');line.textContent=addon.name+' · '+addon.purpose;addonDetails.append(line)});
  const detail=document.createElement('section');detail.id='explore-detail';detail.className='explore-detail glass';detail.hidden=true;detail.setAttribute('aria-label','Сведения и фотографии места');el('app').append(detail);
  updateToggles();
  aside.querySelectorAll('[data-explore-layer]').forEach(btn=>btn.addEventListener('click',()=>{const k=btn.dataset.exploreLayer;state.active.has(k)?state.active.delete(k):state.active.add(k);updateToggles();schedule()}));
@@ -267,6 +316,8 @@ export function initExploreLayers({map,maplibre=null,fallback=false,leaflet=null
 export function updateExploreMap({map,maplibre=null,fallback=false,leaflet=null,L=null}){
  clearMarkers();state.controller?.abort();
  state.map=map;state.maplibre=maplibre;state.fallback=fallback;state.leaflet=leaflet;state.L=L;
+ if(!el('explore-panel'))buildPanel();
+ if(fallback&&leaflet)leaflet.on('moveend',schedule);
  schedule();
 }
 export function showExploreAt(lat,lon,title='Место на карте',tags={}){
