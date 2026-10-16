@@ -96,6 +96,14 @@ for (const {name,width,height,isMobile} of [
     assert.ok(metrics.searchButtonRight<=width+1,'Search submit button must fit inside viewport');
     assert.ok(!errors.some(x=>/does not provide an export named 'default'|Failed to resolve module specifier|SyntaxError/i.test(x)),
       'MapLibre import failed: '+errors.join(' | '));
+    assert.match(await page.locator('#build-version').textContent(),/^v1\.0\.0-rc\.1$/);
+    await page.locator('#earthlens-help-toggle').click();
+    await page.locator('#earthlens-help[open]').waitFor({state:'visible',timeout:4000});
+    assert.match(await page.locator('#earthlens-help').innerText(),/Конфиденциальность/);
+    assert.match(await page.locator('#earthlens-help').innerText(),/Gaussian-сцены/);
+    await page.locator('#earthlens-help .earthlens-help-header button').click();
+    assert.equal(await page.locator('#earthlens-help').getAttribute('open'),null,
+      'Help dialog must close and restore map controls');
     const favorites=page.locator('#saved-places-toggle');
     await favorites.click();
     await page.locator('#saved-place-name').fill('Мой 3D-ракурс');
@@ -168,6 +176,8 @@ for (const {name,width,height,isMobile} of [
       'Automatic quality control must remain accessible');
     assert.match(await page.locator('#explore-quality-status').innerText(),/Авто/,'Show effective automatic quality');
     await page.screenshot({path:'screenshots/earthlens-'+name+'-weather.png',animations:'disabled'});
+    await page.locator('#explore-retry').click();
+    assert.match(await page.locator('#explore-retry-status').textContent(),/источник|завершена|Повторяем/);
     await page.locator('#search-text').fill('Berlin');
     await page.locator('#place-search button[type=submit]').click();
     await page.locator('.search-option').first().waitFor({state:'visible',timeout:6000});
