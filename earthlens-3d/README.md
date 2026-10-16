@@ -142,3 +142,13 @@ The Cesium guide showcases ~110 million splats across 3.7 km² and a camera at l
 **Without the token**, existing open **Utrecht KHR Gaussian Splat** and **Tokyo PLATEAU 3D Tiles** still work and now use the same LOD controls. CESIUM_WORLD_TERRAIN is opt-in through \`VITE_CESIUM_WORLD_TERRAIN=true\` and requires authorized Cesium ion access; default uses open-map imagery and ellipsoid terrain within the Cesium detail view.
 
 Reference on SSE: https://cesium.com/learn/cesiumjs/ref-doc/Cesium3DTileset.html
+
+## October 16: Explore layers (feature branch)
+
+- New compact, collapsible world layer panel; addresses, OSM geolocated trees/green areas, bus stops, road signals, mapped buildings and Finnish Digitraffic road weather cameras. Objects are requested at zoom 13+ around the viewport with capped result counts. OpenStreetMap coverage is uneven; trees are mapped points, **not** fictional globally continuous photorealistic trees.
+- Optional Esri World Imagery imagery tiles under required attribution. Service terms and capacity restrictions apply; not a self-hosted open-source unlimited satellite tile service.
+- Click a feature or map location to open a bottom photo gallery. Wikimedia Commons, Wikipedia, Panoramax, iNaturalist, KartaView and Openverse are keyless integrations (individual public endpoints may reject CORS, throttle, lack imagery, or change schemas). Optional API-key integrations: Mapillary, Flickr and Unsplash. OSM-linked feature photos count as tenth source adapter. Photo provenance and distance labeling avoid claiming a nearby photo depicts the selected property.
+- Property search buttons lead to Airbnb, Booking.com, Google Travel and Yandex Realty search pages, **not listing feed integration**. No unauthorized scraping or fabricated inventory.
+- Supplemental geospatial candidate library list in explore-layers.js is **not installed as ten extra npm dependencies**; adopt individually when required for performance and data processing.
+- Finland camera photos are still images updated periodically (about 10 minutes), not a live video stream. Other countries need their own authorized camera feeds.
+- API quotas, attribution, availability and licences remain provider-specific. Overpass servers are shared community services and must not be used as production unlimited infrastructure: production should adopt cached/self-hosted extracts and a licensed traffic provider.
