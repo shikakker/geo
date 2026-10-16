@@ -24,6 +24,6 @@ test('Solar calculation is injected and can run without npm/network in tests',as
 });
 test('One-command catalog listing works offline and reports 100 candidate packages',()=>{
  const output=execFileSync(process.execPath,[new URL('../scripts/enable-geolibrary.mjs',import.meta.url).pathname,'--list'],{cwd:new URL('../',import.meta.url),encoding:'utf8',timeout:10000});
- assert.match(output,/Total new catalog packages: 100; enabled: 1/);
+ assert.match(output,/Total new catalog packages: 200; enabled: 1/);
  assert.match(output,/suncalc/);
 });
