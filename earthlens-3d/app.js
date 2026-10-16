@@ -1,4 +1,5 @@
 import * as maplibregl from 'maplibre-gl';
+import {initExploreLayers,updateExploreMap,showExploreAt} from './explore-layers.js';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'leaflet/dist/leaflet.css';
@@ -403,7 +404,7 @@ function onMapReady(){
  if(app.mapReady)return;
  app.mapReady=true;clearTimeout(app.bootTimer);
  $('loading').classList.add('hidden');
- styleLoaded();showPosition();updateGuidance();
+ styleLoaded();showPosition();updateGuidance();initExploreLayers({map:app.map,maplibre:maplibregl});
  if(!app.sceneDataLoaded){app.sceneDataLoaded=true;void readScenes()}
 }
 // If the CDN/worker/style/WebGL fails, never leave the viewer behind a blocking loader.
@@ -450,7 +451,7 @@ async function activateRasterFallback(reason){
    queryRenderedFeatures:()=>[],
  };
  raster.on('moveend',cameraMoved);
- raster.on('click',e=>showBuilding({lngLat:{lat:e.latlng.lat,lng:e.latlng.lng},point:null}));
+ raster.on('click',e=>{showBuilding({lngLat:{lat:e.latlng.lat,lng:e.latlng.lng},point:null});showExploreAt(e.latlng.lat,e.latlng.lng,'Точка на карте')});
  $('tilt').textContent='2.5D';
  $('layers-label').textContent='OSM + OPENFREEMAP · 2.5D';
  $('guidance').textContent='Приближайте карту: здания поднимаются объёмными блоками даже без WebGL. Фотографические сканы требуют WebGL.';
@@ -463,6 +464,7 @@ async function activateRasterFallback(reason){
  }catch(error){console.warn('Canvas building extrusion unavailable:',error);}
  showPosition();storeCamera();
  drawScenePins();
+ updateExploreMap({map:app.map,fallback:true,leaflet:raster,L});
  if(!app.sceneDataLoaded){app.sceneDataLoaded=true;void readScenes()}
  // Wait for an actual raster tile before removing the loading screen.
  setTimeout(()=>{if(tileCount===0&&tileErrors===0){
@@ -527,7 +529,7 @@ function boot(){
    map.on('style.load',()=>{if(!app.fallbackActive)styleLoaded()});
    map.on('move',showPosition);
    map.on('moveend',cameraMoved);
-   map.on('click',showBuilding);
+   map.on('click',e=>{showBuilding(e);const p=e.lngLat;showExploreAt(p.lat,p.lng,'Точка на карте')});
    map.on('error',e=>{
      const msg=e.error?.message||String(e.error||'unknown');
      console.warn('Map data source:',msg);
