@@ -9,7 +9,7 @@ import {nearestMappedFeature} from './places-nearby.js';
 import {attachGeoCatalog} from './geo-library-ui.js';
 import {solarPosition} from './solar-position.js';
 import {createFrameQueue} from './progressive-render.js';
-import {warmSpatialAcceleration,visibleByDistance} from './spatial-acceleration.js';
+import {warmSpatialAcceleration,visibleByDistance,createCandidateCache} from './spatial-acceleration.js';
 import {createAdaptiveQuality,beginMoveFpsSampling} from './adaptive-quality.js';
 const THEMES=[
  {id:'addresses',name:'Адреса',symbol:'⌂',on:true},
@@ -38,7 +38,7 @@ const bound=(x,min,max)=>Math.min(max,Math.max(min,x));
 const isCoord=x=>Number.isFinite(x)&&Math.abs(x)<=180;
 const cache=new Map();
 const canopyPolygon=(lon,lat,radiusMeters)=>{const latScale=radiusMeters/111320,lonScale=latScale/Math.max(.2,Math.cos(lat*Math.PI/180));const ring=[];for(let i=0;i<=10;i++){const a=i*Math.PI/5;ring.push([lon+Math.cos(a)*lonScale,lat+Math.sin(a)*latScale])}return [ring]};
-const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),exitingMarkers:new Map(),drawRaf:null,frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',qualityPreference:'auto',qualityController:null,stopFpsSampling:null,selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),osmStatus:'idle',base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null,treeIndex:null,treeEpoch:0};
+const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),exitingMarkers:new Map(),drawRaf:null,candidates:createCandidateCache(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',qualityPreference:'auto',qualityController:null,stopFpsSampling:null,selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),osmStatus:'idle',base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null,treeIndex:null,treeEpoch:0};
 const providers=[
  {id:'airbnb',name:'Airbnb',url:(lat,lon)=>'https://www.airbnb.com/s/'+lat+','+lon+'/homes'},
  {id:'booking',name:'Booking',url:(lat,lon)=>'https://www.booking.com/searchresults.html?ss='+encodeURIComponent(lat+','+lon)},
@@ -276,11 +276,13 @@ function draw(){
 function drawNow(){
  if(!state.map)return;
  drawTreeVolumes(state.features);
- const all=[...state.features,...state.cameraFeatures,...state.weatherFeatures];
  const center=state.map.getCenter(),zoom=state.map.getZoom();
  const isSmall=window.innerWidth<600||navigator.deviceMemory&&navigator.deviceMemory<=4;
  const limit=state.fallback?(state.quality==='smooth'?70:120):isSmall?(state.quality==='smooth'?75:145):(state.quality==='smooth'?165:285);
- const eligible=all.filter(f=>state.active.has(f.properties._kind)&&(zoom>=13||f.properties._kind==='weather'));
+ const eligible=state.candidates.get({
+  osm:state.features,cameras:state.cameraFeatures,weather:state.weatherFeatures,
+  active:state.active,zoom
+ });
  const target=visibleByDistance(eligible,center,zoom,limit);
  const visible=new Set(target.map(featureKey));
  state.frameQueue.submit(target,(f,i)=>{
