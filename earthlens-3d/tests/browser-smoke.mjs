@@ -132,6 +132,10 @@ for (const {name,width,height,isMobile} of [
     await page.locator('[data-render-quality="smooth"]').click();
     assert.equal(await page.locator('[data-render-quality="smooth"]').getAttribute('aria-pressed'),'true',
       'User must be able to switch back to smooth mode');
+    await page.locator('[data-render-quality="auto"]').click();
+    assert.equal(await page.locator('[data-render-quality="auto"]').getAttribute('aria-pressed'),'true',
+      'Automatic quality control must remain accessible');
+    assert.match(await page.locator('#explore-quality-status').innerText(),/Авто/,'Show effective automatic quality');
     await page.screenshot({path:'screenshots/earthlens-'+name+'-weather.png',animations:'disabled'});
     assert.ok(!errors.some(x=>/SyntaxError|does not provide an export|Failed to resolve module specifier/.test(x)),'Progressive weather map must not throw module errors');
     console.log(JSON.stringify({name,pass:true,metrics,weather:true,pageErrors:errors,consoleWarnings:consoleWarnings.slice(0,12),failedResponses:failedResponses.slice(0,12)}));
