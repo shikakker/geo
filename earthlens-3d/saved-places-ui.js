@@ -93,7 +93,7 @@ export function mountSavedPlaces({root,toolbar,getView,onNavigate,notify=()=>{},
   render();notify('Сохранено: '+saved.title);
  });
  const onSelected=event=>selected(event.detail||{});
- const onMoved=()=>{currentSelection=null};
+ const onMoved=()=>{if(currentSelection)name.value='';currentSelection=null};
  const onKey=event=>{
   if(event.key==='Escape'&&!panel.hidden){toggle(false)}
  };
@@ -101,11 +101,11 @@ export function mountSavedPlaces({root,toolbar,getView,onNavigate,notify=()=>{},
  win?.addEventListener('earthlens:place-selected',onSelected);
  win?.addEventListener('earthlens:camera-moved',onMoved);
  doc.addEventListener('keydown',onKey);
- store.subscribe(render);
+ const unsubscribe=store.subscribe(render);
  render();
  return {store,open:()=>toggle(true),close:()=>toggle(false),get openNow(){return !panel.hidden},destroy(){
   win?.removeEventListener('earthlens:place-selected',onSelected);
   win?.removeEventListener('earthlens:camera-moved',onMoved);
-  doc.removeEventListener('keydown',onKey);trigger.remove();panel.remove()
+  doc.removeEventListener('keydown',onKey);unsubscribe();trigger.remove();panel.remove()
  }};
 }
