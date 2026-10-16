@@ -141,3 +141,15 @@
 @media(max-width:850px){.earthlens-stream-status{top:auto;bottom:112px;min-width:0;max-width:calc(100vw - 55px);font-size:9px}}
 @media(max-width:540px){.explore-weather-hours{gap:3px}.explore-weather-hours button{font-size:9px;padding:5px}.earthlens-stream-status{bottom:108px}}
 @media(prefers-reduced-motion:reduce){.earthlens-stream-status,.explore-marker.explore-weather{transition:none!important}.stream-track>span{animation:none!important;width:100%}}
+
+/* EarthLens v0.6: adaptive object density and weather wind bearings. */
+.explore-render-quality{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:9px;padding-top:9px;border-top:1px solid #45644e}
+.explore-render-quality>span{display:block;font-size:9px;font-weight:800;color:#9dc3a6;width:100%;letter-spacing:.065em}
+.explore-render-quality button{flex:1;border-radius:6px;border:1px solid #557d61;background:#233d2d;color:#d7f0de;padding:6px 5px;min-height:29px;font-size:10px;white-space:nowrap}
+.explore-render-quality button[aria-pressed=true]{background:#beebc7;color:#163821;border-color:#d3f8dd}
+.explore-weather{display:flex!important;justify-content:center;align-items:center;gap:5px;transition:background-color .55s ease}
+.explore-wx-value{font-variant-numeric:tabular-nums;white-space:nowrap}
+.explore-wx-arrow{display:inline-block;flex:none;font-size:13px;line-height:1;transform-origin:center center;transition:transform .65s ease}
+.scan-marker{animation:earthlens-marker-enter 360ms ease-out both}
+@media (max-width:560px){.explore-render-quality button{min-height:34px;font-size:9px}}
+@media(prefers-reduced-motion:reduce){.explore-wx-arrow{transition:none!important}.scan-marker{animation:none!important}}
