@@ -48,12 +48,13 @@ function apiPopup(title,details='',photo=null){
  panel.replaceChildren();
  const head=document.createElement('div');head.className='explore-detail-head';
  const heading=document.createElement('strong');heading.textContent=title;
- const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','Закрыть карточку');close.addEventListener('click',()=>{panel.hidden=true;state.photoController?.abort()});
+ const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','Закрыть карточку');close.addEventListener('click',()=>{state.selectEpoch++;panel.hidden=true;state.photoController?.abort()});
  head.append(heading,close);panel.append(head);
  const p=document.createElement('p');p.className='explore-sub';p.textContent=details;panel.append(p);
  if(photo){const img=document.createElement('img');img.className='explore-camera-image';img.src=photo;img.alt=title;img.referrerPolicy='no-referrer';img.loading='lazy';panel.append(img)}
 }
 function openDetail(feature){
+ state.selectEpoch++;
  const p=feature.properties||{},coordinates=feature.geometry?.coordinates||[];
  const lat=coordinates[1],lon=coordinates[0];
  if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
@@ -319,12 +320,13 @@ async function load(){
  await Promise.allSettled([osmDone,cameraDone,weatherDone]);
  if(current())draw();
 }
-function schedule(){clearTimeout(state.timer);state.timer=setTimeout(load,850)}
+function schedule(){clearTimeout(state.timer);state.timer=setTimeout(load,window.innerWidth<650?560:460)}
 function updateToggles(){
  document.querySelectorAll('[data-explore-layer]').forEach(btn=>{const active=state.active.has(btn.dataset.exploreLayer);btn.setAttribute('aria-pressed',String(active));btn.classList.toggle('on',active)});
  const row=el('explore-weather-hours');
  if(row)row.hidden=!state.active.has('weather');
  document.querySelectorAll('[data-weather-hour]').forEach(btn=>btn.setAttribute('aria-pressed',String(Number(btn.dataset.weatherHour)===state.weatherOffsetHours)));
+ document.querySelectorAll('[data-render-quality]').forEach(btn=>btn.setAttribute('aria-pressed',String(btn.dataset.renderQuality===state.quality)));
 }
 function satellite(){
  if(state.fallback){el('explore-satellite').setAttribute('aria-pressed','false');return}
@@ -351,7 +353,7 @@ function satellite(){
 function buildPanel(){
  if(el('explore-panel'))return;
  const aside=document.createElement('aside');aside.id='explore-panel';aside.className='explore-panel glass';
- aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник</button><span id="explore-count">Готово</span></div><p id="explore-weather-status" class="explore-licence" hidden></p><details class="explore-oss"><summary>20 GIS-библиотек · 10 новых</summary><span>Подключаются по необходимости, без API-квот</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
+ aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник</button><span id="explore-count">Готово</span></div><p id="explore-weather-status" class="explore-licence" hidden></p><div class="explore-render-quality" role="group" aria-label="Качество отображения карты"><span>ОБЪЕКТЫ</span><button type="button" data-render-quality="smooth" aria-pressed="true">Плавно</button><button type="button" data-render-quality="detail" aria-pressed="false">Подробно</button></div><details class="explore-oss"><summary>30 GIS-библиотек · 10 новых</summary><span>Подключаются по необходимости, без API-квот</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
  el('app').append(aside);
  const weatherHours=document.createElement('div');
  weatherHours.id='explore-weather-hours';weatherHours.className='explore-weather-hours';weatherHours.hidden=true;
@@ -362,19 +364,20 @@ function buildPanel(){
  }
  aside.querySelector('.explore-layer-list').before(weatherHours);
  const addonDetails=aside.querySelector('.explore-oss');
- [...GEO_ADDONS,...GEO_ADDONS_NEXT].forEach(addon=>{const line=document.createElement('span');line.textContent=addon.name+' · '+addon.purpose;addonDetails.append(line)});
+ [...GEO_ADDONS,...GEO_ADDONS_NEXT,...GEO_ADDONS_VISUAL].forEach(addon=>{const line=document.createElement('span');line.textContent=addon.name+' · '+addon.purpose;addonDetails.append(line)});
  const detail=document.createElement('section');detail.id='explore-detail';detail.className='explore-detail glass';detail.hidden=true;detail.setAttribute('aria-label','Сведения и фотографии места');el('app').append(detail);
  updateToggles();
- aside.querySelectorAll('[data-explore-layer]').forEach(btn=>btn.addEventListener('click',()=>{const k=btn.dataset.exploreLayer;state.active.has(k)?state.active.delete(k):state.active.add(k);updateToggles();draw();schedule()}));
+ aside.querySelectorAll('[data-explore-layer]').forEach(btn=>btn.addEventListener('click',()=>{const k=btn.dataset.exploreLayer;state.active.has(k)?state.active.delete(k):state.active.add(k);updateToggles();draw();void renderWindVectors();schedule()}));
  aside.querySelectorAll('[data-weather-hour]').forEach(btn=>btn.addEventListener('click',()=>{const h=Number(btn.dataset.weatherHour);if(!WEATHER_HORIZONS.includes(h))return;state.weatherOffsetHours=h;updateToggles();schedule()}));
+ aside.querySelectorAll('[data-render-quality]').forEach(btn=>btn.addEventListener('click',()=>{const q=btn.dataset.renderQuality;if(q!=='smooth'&&q!=='detail')return;state.quality=q;state.lastTreeSource=null;state.lastTreeEnabled=null;updateToggles();draw()}));
  el('explore-collapse').addEventListener('click',()=>{aside.classList.toggle('collapsed');el('explore-collapse').textContent=aside.classList.contains('collapsed')?'+':'−'});
  el('explore-satellite').addEventListener('click',()=>{if(state.fallback){alert('Спутниковый слой доступен в WebGL-режиме.');return}state.imagery=!state.imagery;satellite()});
 }
 export function initExploreLayers({map,maplibre=null,fallback=false,leaflet=null,L=null}){
  state.map=map;state.maplibre=maplibre;state.fallback=fallback;state.leaflet=leaflet;state.L=L;
  buildPanel();
- map.on?.('moveend',schedule);
- if(!fallback)map.on?.('style.load',()=>{satellite();schedule()});
+ map.on?.('moveend',()=>{draw();schedule()});
+ if(!fallback)map.on?.('style.load',()=>{state.lastTreeSource=null;satellite();schedule()});
  void warmSpatialAcceleration().then(()=>{if(state.map===map)draw()});
  schedule();
 }
@@ -385,9 +388,20 @@ export function updateExploreMap({map,maplibre=null,fallback=false,leaflet=null,
  if(fallback&&leaflet)leaflet.on('moveend',schedule);
  schedule();
 }
-export function showExploreAt(lat,lon,title='Место на карте',tags={}){
+export async function showExploreAt(lat,lon,title='Место на карте',tags={}){
  if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
- openDetail({type:'Feature',geometry:{type:'Point',coordinates:[lon,lat]},properties:{...tags,name:title,_kind:'place'}});
+ const fallback={type:'Feature',geometry:{type:'Point',coordinates:[lon,lat]},properties:{...tags,name:title,_kind:'place'}};
+ if(tags?.name&&tags.name!==title){openDetail(fallback);return}
+ if(!state.features.length){openDetail(fallback);return}
+ const ticket=++state.selectEpoch;
+ apiPopup(title,'Определяем ближайший объект…');
+ try{
+  const match=await nearestMappedFeature({lat,lon,zoom:state.map?.getZoom?.()||16,features:state.features});
+  if(ticket!==state.selectEpoch)return;
+  openDetail(match?.feature||fallback);
+ }catch(error){
+  if(ticket===state.selectEpoch){console.debug('Nearby feature lookup unavailable',error.message);openDetail(fallback)}
+ }
 }
-export const EXTRA_OPEN_SOURCE_LIBRARIES=[...GEO_ADDONS,...GEO_ADDONS_NEXT];
+export const EXTRA_OPEN_SOURCE_LIBRARIES=[...GEO_ADDONS,...GEO_ADDONS_NEXT,...GEO_ADDONS_VISUAL];
 export const REALTY_PROVIDERS=providers.map(({id,name})=>({id,name,mode:'external-search-only'}));
