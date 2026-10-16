@@ -39,7 +39,7 @@ for (const {name,width,height,isMobile} of [
   // Exercise the same-origin geodata layer deterministically; the server-side
   // route is independently tested in tests/osm-api.test.mjs.
   await page.route(url=>url.pathname==='/api/osm',async route=>{
-    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({elements:[
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({stale:true,elements:[
       {type:'node',id:90001,lat:40.74873,lon:-73.98531,tags:{'addr:street':'Fifth Avenue','addr:housenumber':'350',name:'Example address'}},
       {type:'node',id:90002,lat:40.74866,lon:-73.98525,tags:{natural:'tree',height:'9',name:'Example tree'}}
     ]})});
@@ -93,6 +93,7 @@ for (const {name,width,height,isMobile} of [
       'MapLibre import failed: '+errors.join(' | '));
     await page.locator('.explore-addresses').first().waitFor({state:'visible',timeout:16000});
     await page.locator('.explore-trees').first().waitFor({state:'visible',timeout:16000});
+    assert.match(await page.locator('#explore-osm-status').innerText(),/сохранённые данные/,'Cached OSM provenance must be visible');
     await page.screenshot({path:'screenshots/earthlens-'+name+'.png',animations:'disabled'});
     // Verify the 100 opt-in libraries are searchable, not preloaded.
     const market=page.locator('#explore-library-catalog');
