@@ -23,7 +23,7 @@ for (const {name,width,height,isMobile} of [
     const points=(url.searchParams.get('latitude')||'').split(',').map(Number);
     const record=()=>{
       const current={time:'2026-10-16T12:00',temperature_2m:17.4,weather_code:2,apparent_temperature:16.2,
-        wind_speed_10m:13.2,cloud_cover:45,precipitation:0,relative_humidity_2m:63,pressure_msl:1015};
+        wind_speed_10m:13.2,wind_direction_10m:60,cloud_cover:45,precipitation:0,relative_humidity_2m:63,pressure_msl:1015};
       const times=['2026-10-16T12:00','2026-10-16T15:00','2026-10-16T18:00','2026-10-17T00:00'];
       const hourly={time:times};
       for(const [key,value] of Object.entries(current)){
@@ -99,6 +99,10 @@ for (const {name,width,height,isMobile} of [
     const marker=page.locator('.explore-weather').first();
     await marker.waitFor({state:'visible',timeout:17000});
     assert.match(await marker.innerText(),/17°/,'Weather icon must contain provider data');
+    await marker.locator('.explore-wx-arrow').waitFor({state:'visible',timeout:6000});
+    assert.match(await marker.locator('.explore-wx-arrow').getAttribute('style'),/rotate\(240deg\)/,
+      'Wind direction FROM 60 degrees must draw arrow TOWARDS 240 degrees');
+    await page.waitForFunction(()=>window.__earthlensDiagnostics?.().weatherWindLayer===true,null,{timeout:14000});
     await marker.click();
     const detail=page.locator('#explore-detail');
     await detail.locator('.explore-weather-cell').first().waitFor({timeout:6000});
@@ -110,6 +114,13 @@ for (const {name,width,height,isMobile} of [
     await marker.click();
     assert.match(await detail.innerText(),/21.6/,'Forecast +3h must use hourly provider data');
     assert.match(await detail.innerText(),/прогноз \+3 ч/,'Forecast card must label prediction horizon');
+    await page.locator('#explore-detail .explore-detail-head button').click();
+    await page.locator('[data-render-quality="detail"]').click();
+    assert.equal(await page.locator('[data-render-quality="detail"]').getAttribute('aria-pressed'),'true',
+      'Detail mode must be an accessible interactive choice');
+    await page.locator('[data-render-quality="smooth"]').click();
+    assert.equal(await page.locator('[data-render-quality="smooth"]').getAttribute('aria-pressed'),'true',
+      'User must be able to switch back to smooth mode');
     await page.screenshot({path:'screenshots/earthlens-'+name+'-weather.png',animations:'disabled'});
     assert.ok(!errors.some(x=>/SyntaxError|does not provide an export|Failed to resolve module specifier/.test(x)),'Progressive weather map must not throw module errors');
     console.log(JSON.stringify({name,pass:true,metrics,weather:true,pageErrors:errors,consoleWarnings:consoleWarnings.slice(0,12),failedResponses:failedResponses.slice(0,12)}));
