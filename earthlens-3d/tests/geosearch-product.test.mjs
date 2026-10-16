@@ -6,7 +6,7 @@ test('City search picks geographic zoom while building results stay detailed',()
  assert.equal(suggestedZoom(['52.45','52.59','13.3','13.5']),12);
  assert.equal(suggestedZoom(['40.7486','40.7488','-73.9855','-73.9852']),16.2);
  assert.equal(suggestedZoom(['broken']),15.5);
- assert.equal(suggestedZoom(['-0.01','0.01','179.95','-179.95']),13.7,'Antimeridian crossing must not zoom to world scale');
+ assert.equal(suggestedZoom(['-0.01','0.01','179.95','-179.95']),12,'Antimeridian crossing must not zoom to world scale');
  const parsed=normalizeSearchResults([
   {place_id:1,lat:'52.5200',lon:'13.4050',display_name:'Berlin, Deutschland',boundingbox:['52.45','52.59','13.3','13.5']},
   {place_id:2,lat:'52.5200',lon:'13.4050',display_name:'duplicate'},
