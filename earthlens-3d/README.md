@@ -206,3 +206,33 @@ This iteration **adds ten new npm GIS packages, for 30 addon modules total**, be
 **Geotagged interaction:** clicking an unlabelled map point searches loaded OpenStreetMap POIs within a small radius using Turf Nearest Point; a photo gallery continues to distinguish nearby photos from confirmed property photos. This does not invent building or address data.
 
 **Boundaries:** Only the two referenced Turf modules are actively called in v0.6. The other eight packages are installed and exposed via on-demand import but have **no new UI feature yet**. The 30-pack refers to distinct addon modules, not 30 independent data services or APIs. Hosted Overpass, weather, satellite and camera APIs may have quotas, CORS limitations and license conditions; self-hosted library source code carries no hosted per-request quotas. The live site may still serve an earlier commit until Vercel accepts an exact-head deployment, and external Cesium demo assets remain best-effort.
+
+## EarthLens v0.7 — 100 more GIS extension candidates and smooth 3D streaming
+
+EarthLens retains its 30 installed GIS packages and adds **100 further, distinct, npm-verified packages in a searchable extension catalog** (`geo-library-catalog.js`). **The 100 extensions are not all installed or loaded**: doing so would delay map startup and add unneeded heavyweight engines. They are opt-in; every selected package is individually version-pinned and included as a lazy Vite chunk.
+
+Quick start from `earthlens-3d/`:
+
+```bash
+npm run geo:catalog
+npm run geo:add -- h3-js
+npm run geo:add -- d3-timer
+npm run check
+npm run build
+```
+
+The installer checks a 100-name allowlist, retrieves npm metadata, verifies a recognized free software license or a separately reviewed upstream source, installs an exact version with npm scripts disabled, and emits a static Vite lazy import. Ambiguous licenses are rejected; at most eight packages can be requested per invocation. Do not enable all 100 at once.
+
+**SunCalc 1.9.0 is actually installed and lazily loaded** for local, no-API sun altitude/azimuth in selected weather cards. The other 99 are available to install on demand. The sidebar catalog filters 100 packages over nine groups and offers a copyable install command, showing at most 20 matches per page. Groups: weather/time 8; 3D 8; geodata 13; spatial 10; D3 16; offline/cache 14; math 8; search 6; Turf 17.
+
+### Progressive loading
+
+- Existing map marker DOM nodes are reused; new ones appear in frame-budgeted, cancelable batches.
+- **3D tree canopies double-buffer:** keep the previous GeoJSON geometry on screen, load new trees into a separate source, then fade the two extrusion layers smoothly. This avoids abruptly replacing entire tree groups.
+- Basemap style updates preserve compatible EarthLens 3D, wind and imagery layers; satellite imagery remains behind 3D geometry.
+- Photo thumbnail placeholders fade in on image decode; mobile devices receive smaller marker and tree budgets.
+- `prefers-reduced-motion` is respected. A temporary provider outage does not erase the base map.
+
+**An open-source module does not provide unlimited public API calls.** Self-hosted library code has no per-request billing, but remote Overpass, Open-Meteo, imagery and camera providers impose their own licenses, quotas and uptime constraints. Open-Meteo's no-key access is noncommercial and quota-limited.
+
+Catalog availability and licenses are audited independently against npm metadata in GitHub Actions. Map correctness is checked with Node tests, Vite production builds and desktop/mobile Chromium.
