@@ -180,3 +180,29 @@ Ten extra permissively licensed npm dependencies are **installed on demand throu
 The add-ons have no provider usage quotas when self-hosted. **That does not make Open-Meteo or imagery services unlimited.** Open-Meteo's free tier is non-commercial only, with <10,000 requests/day and additional hourly/minute limits: https://open-meteo.com/en/terms . Production and commercial operation require licensed service arrangements.
 
 GitHub Actions checks syntax, Node regression tests, Vite build and desktop/mobile Chromium smoke. Draft PR code is not a verified production deployment.
+
+
+## v0.6 · Smooth loading / third OSS expansion (October 2026)
+
+This iteration **adds ten new npm GIS packages, for 30 addon modules total**, beyond the four base renderer dependencies. The packages are individually lazy-imported; importing the registry alone does not download all optional chunks.
+
+| Additional package | Pinned version | License | Intended capability |
+|---|---|---|---|
+| geojson-vt | 5.0.2 | ISC | Local vector tile indexing |
+| vt-pbf | 3.1.3 | MIT | Binary vector tiles |
+| martinez-polygon-clipping | 0.8.1 | MIT | Polygon intersections |
+| earcut | 3.2.4 | ISC | Fast 3D polygon triangulation |
+| geobuf | 3.0.2 | ISC | Compact GeoJSON serialization |
+| @turf/destination | 7.4.0 | MIT | **Active:** weather wind geodesic arrow endpoints |
+| @turf/nearest-point | 7.4.0 | MIT | **Active:** nearest real mapped POI on map click |
+| @turf/length | 7.4.0 | MIT | Distance along roads and routes |
+| @turf/boolean-intersects | 7.4.0 | MIT | Geographic object intersection |
+| @turf/buffer | 7.4.0 | MIT | Nearby radius polygons |
+
+**Smoothness improvements.** MapLibre now caps pixel density at 1.6x on mobile/low-memory devices and 2x on desktop. MapLibre's per-source tile-cache zoom levels are 3 (small devices) or 7 (desktop); Leaflet fallback uses a sized tile buffer. Adaptive frame-budgeted marker rendering defaults to **Плавно**, limiting immediate objects and 3D tree canopies. Users can choose **Подробно** for more objects. Scene pins, weather compass arrows, satellite opacity and marker arrivals have transitions, with reduced-motion OS settings honored. Previously visible objects remain in place during asynchronous refresh.
+
+**Weather:** once the user enables weather, wind speed and *meteorological FROM bearing* are read from the real Open-Meteo response. Turf Destination generates map lines in the direction wind **blows toward**; line length is illustrative and must not be interpreted as real air-parcel displacement. A matching rotatable compass arrow appears beside temperature. Time steps 0/+3/+6/+12h reuse existing 15-minute response cache. Existing Open-Meteo source attribution and terms remain.
+
+**Geotagged interaction:** clicking an unlabelled map point searches loaded OpenStreetMap POIs within a small radius using Turf Nearest Point; a photo gallery continues to distinguish nearby photos from confirmed property photos. This does not invent building or address data.
+
+**Boundaries:** Only the two referenced Turf modules are actively called in v0.6. The other eight packages are installed and exposed via on-demand import but have **no new UI feature yet**. The 30-pack refers to distinct addon modules, not 30 independent data services or APIs. Hosted Overpass, weather, satellite and camera APIs may have quotas, CORS limitations and license conditions; self-hosted library source code carries no hosted per-request quotas. The live site may still serve an earlier commit until Vercel accepts an exact-head deployment, and external Cesium demo assets remain best-effort.
