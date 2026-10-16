@@ -160,3 +160,27 @@
 .explore-gallery img.explore-photo-progress.is-loaded{opacity:1;filter:none;transform:scale(1)}
 .explore-gallery img.explore-photo-progress.is-unavailable{opacity:.25;filter:grayscale(1);transform:none}
 @media(prefers-reduced-motion:reduce){.explore-gallery img.explore-photo-progress{transition:none!important}.explore-gallery img.explore-photo-progress.is-loaded{opacity:1}}
+
+/* v0.7 opt-in GIS catalog: collapsed by default, no runtime package downloads */
+.explore-market{border-top:1px solid #466c51;margin-top:9px;padding-top:8px;font-size:10px}
+.explore-market>summary{cursor:pointer;color:#c6efce;font-weight:750;line-height:1.45}
+.explore-market-body{margin-top:9px}
+.explore-market-body>p{color:#a6c4ae;font-size:9px;line-height:1.48;margin:6px 0}
+.explore-market-filters{display:flex;flex-direction:column;gap:5px}
+.explore-market-filters input,.explore-market-filters select{
+ width:100%;min-width:0;height:30px;padding:0 7px;color:#e5f6e7;background:#233d2c;
+ border:1px solid #65856d;border-radius:6px;font:inherit;outline-offset:2px
+}
+.explore-market-filters select option{background:#233d2c}
+.explore-market-list{max-height:172px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;margin-top:7px}
+.explore-market-item{display:flex;justify-content:space-between;align-items:center;gap:5px;border-bottom:1px solid #ffffff17;padding:6px 0}
+.explore-market-item a{font-size:10px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#d6f4de}
+.explore-market-item button{border:1px solid #698971;color:#d2f3d8;border-radius:5px;background:#2c4b37;
+ padding:5px;font-size:9px;flex:none}
+.explore-market-item button:disabled{opacity:.65;cursor:default}
+.explore-market-feedback{overflow-wrap:anywhere;color:#d0edd6}
+.explore-photo-progress{opacity:0;transition:opacity .6s cubic-bezier(.2,.8,.2,1);background:#213d2c}
+.explore-photo-progress.is-loaded{opacity:1}
+.explore-photo-progress.is-unavailable{opacity:.25}
+.explore-gallery a{background:linear-gradient(105deg,#234133,#365841,#234133);background-size:220% 100%}
+@media(prefers-reduced-motion:reduce){.explore-photo-progress{transition:none!important}.explore-photo-progress.is-loaded{opacity:1}}
