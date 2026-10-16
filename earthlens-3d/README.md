@@ -246,3 +246,29 @@ Catalog availability and licenses are audited independently against npm metadata
 **Data provenance in the UI** distinguishes fresh geodata from a stale or unreachable provider. Existing 3D buildings and markers remain usable when upstream queries fail. The browser smoke verifies that an intentionally stale OSM payload still draws buildings, trees and addresses and shows the source warning.
 
 No additional API keys or subscriptions are introduced. Upstream Open-Meteo, Overpass, image providers and third-party scene hosts retain their independent quotas and terms.
+
+## v0.9 — smooth 3D source-ready transitions and second 100-library collection
+
+EarthLens now has **200 separately curated optional npm libraries**: the original 100 (`geo-library-catalog.js`) plus **another distinct 100** in `geo-library-catalog-extra.js` (Turf, D3, deck.gl, loaders.gl and Leaflet utilities). All 200 are names in the optional library catalog, NOT code loaded on map startup. The previously installed 30 GIS packages and one lazily activated SunCalc module are retained. GitHub Actions checks registry availability and permissible licenses for all 200 names, and new tests prevent any duplication against the first catalog or installed GIS core.
+
+From `earthlens-3d/`, find a package in the map sidebar or use:
+
+```bash
+npm run geo:catalog
+npm run geo:add -- leaflet-control-geocoder
+npm run geo:add -- @turf/transform-rotate
+npm run check
+npm run build
+```
+
+The installation helper verifies the package against the combined allowlist, checks current npm metadata/license, pins an exact version with lifecycle scripts disabled and writes a static on-demand Vite import. The map never installs npm packages at runtime. Heavy 3D/deck.gl engines are **not enabled by default** because they would increase JS download and WebGL contention.
+
+### What was optimized
+
+- Merge multiple same-frame overlay updates into one animation frame instead of repeatedly canceling marker batches.
+- Fade-out markers can be revived with their original DOM element if users switch a layer back on or reverse a short pan before the removal timer finishes.
+- Reuse a stable candidate array during map pans and zoom changes in the same visibility band. This keeps the KDBush spatial index cached in its WeakMap, rather than rebuilding it every time.
+- For OSM 3D tree extrusions, preserve the old geometry while the new GeoJSON source is being parsed. Start the elevation/opacity crossfade **after** MapLibre reports the new source as loaded. If the source fails, keep existing geometry visible. Reduced-motion preferences remain respected.
+- Existing visual regression checks cover the desktop and mobile map, weather, geodata warnings, optional module search, and rapid marker re-entry. The initial JS performance budget continues to prohibit eager imports of all optional libraries.
+
+**Open-source software is not an unlimited external data feed.** Public OSM Overpass, imagery, traffic cameras, Open-Meteo, travel and photo providers have their own licenses and quotas. These 100 catalog entries do not imply 100 free real-time map data services.
