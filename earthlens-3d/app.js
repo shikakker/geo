@@ -451,7 +451,7 @@ async function activateRasterFallback(reason){
    queryRenderedFeatures:()=>[],
  };
  raster.on('moveend',cameraMoved);
- raster.on('click',e=>{showBuilding({lngLat:{lat:e.latlng.lat,lng:e.latlng.lng},point:null});showExploreAt(e.latlng.lat,e.latlng.lng,'Точка на карте')});
+ raster.on('click',e=>showExploreAt(e.latlng.lat,e.latlng.lng,'Точка на карте')));
  $('tilt').textContent='2.5D';
  $('layers-label').textContent='OSM + OPENFREEMAP · 2.5D';
  $('guidance').textContent='Приближайте карту: здания поднимаются объёмными блоками даже без WebGL. Фотографические сканы требуют WebGL.';
@@ -529,7 +529,7 @@ function boot(){
    map.on('style.load',()=>{if(!app.fallbackActive)styleLoaded()});
    map.on('move',showPosition);
    map.on('moveend',cameraMoved);
-   map.on('click',e=>{showBuilding(e);const p=e.lngLat;showExploreAt(p.lat,p.lng,'Точка на карте')});
+   map.on('click',e=>{const p=e.lngLat;let f;try{f=map.queryRenderedFeatures(e.point,{layers:['earthlens-3d-buildings']})[0]}catch{}showExploreAt(p.lat,p.lng,f?.properties?.name||'Точка на карте',f?.properties||{})});
    map.on('error',e=>{
      const msg=e.error?.message||String(e.error||'unknown');
      console.warn('Map data source:',msg);
