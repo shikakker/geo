@@ -7,7 +7,7 @@ const TTL=15*60*1000;
 const cache=new Map();
 export function weatherSymbol(code){
  const value=Number(code);
- if(!Number.isFinite(value))return '◌';
+ if(code===null||code===undefined||!Number.isFinite(value))return '◌';
  if(value===0)return '☀';
  if(value<=3)return '⛅';
  if(value<=48)return '≋';
@@ -19,9 +19,8 @@ export function weatherSymbol(code){
 export function weatherSamples(center,zoom){
  const lat=Number(center?.lat),lon=Number(center?.lng);
  if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>85||Math.abs(lon)>180)return [];
- const step=zoom>=12?.12:zoom>=9?.5:zoom>=6?2:6;
- const snap=n=>Math.round(n/step)*step;
- const base=[Math.max(-84,Math.min(84,snap(lat))),Math.max(-178,Math.min(178,snap(lon)))];
+ const step=zoom>=12?0:zoom>=10?.12:zoom>=8?.4:zoom>=6?1.5:6;
+ const base=[Number(lat.toFixed(3)),Number(lon.toFixed(3))];
  const candidates=[[0,0]];
  if(zoom<12)candidates.push([-1,-1],[1,-1],[-1,1],[1,1]);
  return candidates.map(([i,j])=>({
@@ -63,9 +62,10 @@ export function weatherFeatures(samples,raw){
 export async function getWeatherForView({center,zoom,signal,fetcher=fetch}){
  const samples=weatherSamples(center,zoom);
  if(!samples.length)return [];
- const key=samples.map(p=>p.lat+':'+p.lon).join('|');
+ const precision=zoom>=12?2:zoom>=8?1:0;
+ const key=[Math.round(zoom>=12?12:zoom>=10?10:zoom>=8?8:6),samples.length,Number(center.lat).toFixed(precision),Number(center.lng).toFixed(precision)].join(':');
  const hit=cache.get(key);
- if(hit&&Date.now()-hit.time<TTL)return hit.data;
+ if(hit&&Date.now()-hit.time<TTL)return weatherFeatures(samples,hit.raw);
  const url=weatherRequest(samples);
  const controller=new AbortController();
  const abort=()=>controller.abort();
@@ -78,7 +78,7 @@ export async function getWeatherForView({center,zoom,signal,fetcher=fetch}){
   const data=await response.json();
   const features=weatherFeatures(samples,data);
   if(signal?.aborted)throw new DOMException('Aborted','AbortError');
-  cache.set(key,{time:Date.now(),data:features});
+  cache.set(key,{time:Date.now(),raw:data});
   if(cache.size>24)cache.delete(cache.keys().next().value);
   return features;
  }finally{
