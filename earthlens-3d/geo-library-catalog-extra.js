@@ -62,7 +62,7 @@ export const GEO_LIBRARY_GROUPS_EXTRA=[
       "@turf/clusters",
       "@turf/clusters-kmeans",
       "@turf/interpolate",
-      "@turf/isobars",
+      "@turf/angle",
       "@turf/mask",
       "@turf/meta",
       "@turf/projection",
@@ -127,7 +127,7 @@ export const GEO_LIBRARY_GROUPS_EXTRA=[
     "Leaflet и офлайн-данные",
     [
       "leaflet.markercluster",
-      "leaflet.heat",
+      "leaflet-control-geocoder",
       "leaflet-draw",
       "leaflet-geosearch",
       "leaflet-geometryutil",
