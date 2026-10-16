@@ -50,7 +50,8 @@
     "@turf/nearest-point": "7.4.0",
     "@turf/length": "7.4.0",
     "@turf/boolean-intersects": "7.4.0",
-    "@turf/buffer": "7.4.0"
+    "@turf/buffer": "7.4.0",
+    "suncalc": "1.9.0"
   },
   "devDependencies": {
     "vite": "7.1.9",
