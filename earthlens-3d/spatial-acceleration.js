@@ -50,3 +50,30 @@ export function visibleByDistance(features,center,zoom,limit){
  return candidates.filter(f=>inViewport(f,center,zoom)).sort((a,b)=>distance(a)-distance(b)).slice(0,limit);
 }
 export function spatialCapabilities(){return {ruler:!!rulerCtor,index:!!indexCtor}}
+
+
+// Preserve the SAME input array identity across camera movements. KDBush's
+// WeakMap is keyed by that identity; allocating/filtering a new array on every
+// draw would rebuild the entire spatial index every time a user pans.
+export function createCandidateCache(){
+ let previous=null;
+ let rebuilds=0;
+ function get({osm=[],cameras=[],weather=[],active=new Set(),zoom=0}={}){
+  const visiblePOI=zoom>=13;
+  const enabled=[...active].sort().join(',');
+  if(previous&&previous.osm===osm&&previous.cameras===cameras&&
+     previous.weather===weather&&previous.enabled===enabled&&
+     previous.visiblePOI===visiblePOI)return previous.features;
+  const features=[];
+  for(const source of [osm,cameras,weather]){
+   for(const item of source){
+    const kind=item?.properties?._kind;
+    if(kind&&active.has(kind)&&(visiblePOI||kind==='weather'))features.push(item);
+   }
+  }
+  previous={osm,cameras,weather,enabled,visiblePOI,features};
+  rebuilds++;
+  return features;
+ }
+ return {get,reset(){previous=null},get rebuilds(){return rebuilds}};
+}
