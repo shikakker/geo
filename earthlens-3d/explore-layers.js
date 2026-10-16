@@ -245,29 +245,35 @@ async function load(){
  })();
  const cameraTask=state.active.has('cameras')&&zoom>=13?cameras():Promise.resolve([]);
  const weatherTask=state.active.has('weather')?getWeatherForView({center,zoom,signal:ctl.signal}):Promise.resolve([]);
- const [osm,camera,weather]=await Promise.allSettled([osmTask,cameraTask,weatherTask]);
- if(seq!==state.seq||ctl.signal.aborted)return;
- if(osm.status==='fulfilled')state.features=osm.value;
- else if(hasOSM)console.debug('OSM detail source temporarily unavailable',osm.reason);
- else state.features=[];
- state.cameraFeatures=camera.status==='fulfilled'?camera.value:[];
- if(weather.status==='fulfilled'){
-  // Colour ramp is supplied by an optional, lazy D3 module.
-  state.weatherFeatures=await Promise.all(weather.value.map(async feature=>({
+ const current=()=>seq===state.seq&&!ctl.signal.aborted;
+ const osmDone=osmTask.then(features=>{
+  if(!current())return;
+  state.features=features;draw();
+ }).catch(error=>{if(current())console.debug('OSM detail source unavailable; previous data remains visible',error)});
+ const cameraDone=cameraTask.then(features=>{
+  if(!current())return;
+  state.cameraFeatures=features;draw();
+ }).catch(error=>{if(current())console.debug('Camera provider unavailable',error)});
+ const weatherDone=weatherTask.then(async features=>{
+  if(!current())return;
+  const coloured=await Promise.all(features.map(async feature=>({
    ...feature,properties:{...feature.properties,_color:await temperatureColor(feature.properties.temperature)}
   })));
-  state.weatherError=false;
- }else{
+  if(!current())return;
+  state.weatherFeatures=coloured;state.weatherError=false;
+  const note=el('explore-weather-status');
+  if(note){note.hidden=!state.active.has('weather');note.textContent=state.active.has('weather')?'Прогноз Open-Meteo · кеш 15 минут':''}
+  draw();
+ }).catch(error=>{
+  if(!current())return;
   state.weatherFeatures=[];state.weatherError=state.active.has('weather');
-  if(state.weatherError)console.debug('Weather provider temporarily unavailable',weather.reason);
- }
- if(seq!==state.seq||ctl.signal.aborted)return;
- const note=el('explore-weather-status');
- if(note){
-  note.hidden=!state.active.has('weather');
-  note.textContent=state.weatherError?'Погода временно недоступна':state.active.has('weather')?'Погода по модели Open-Meteo · обновление ≈15 мин':'';
- }
- draw();
+  const note=el('explore-weather-status');
+  if(note){note.hidden=!state.active.has('weather');note.textContent='Погода временно недоступна'}
+  if(state.weatherError)console.debug('Weather provider unavailable',error);
+  draw();
+ });
+ await Promise.allSettled([osmDone,cameraDone,weatherDone]);
+ if(current())draw();
 }
 function schedule(){clearTimeout(state.timer);state.timer=setTimeout(load,850)}
 function updateToggles(){
@@ -304,7 +310,7 @@ function buildPanel(){
  GEO_ADDONS.forEach(addon=>{const line=document.createElement('span');line.textContent=addon.name+' · '+addon.purpose;addonDetails.append(line)});
  const detail=document.createElement('section');detail.id='explore-detail';detail.className='explore-detail glass';detail.hidden=true;detail.setAttribute('aria-label','Сведения и фотографии места');el('app').append(detail);
  updateToggles();
- aside.querySelectorAll('[data-explore-layer]').forEach(btn=>btn.addEventListener('click',()=>{const k=btn.dataset.exploreLayer;state.active.has(k)?state.active.delete(k):state.active.add(k);updateToggles();schedule()}));
+ aside.querySelectorAll('[data-explore-layer]').forEach(btn=>btn.addEventListener('click',()=>{const k=btn.dataset.exploreLayer;state.active.has(k)?state.active.delete(k):state.active.add(k);updateToggles();draw();schedule()}));
  el('explore-collapse').addEventListener('click',()=>{aside.classList.toggle('collapsed');el('explore-collapse').textContent=aside.classList.contains('collapsed')?'+':'−'});
  el('explore-satellite').addEventListener('click',()=>{if(state.fallback){alert('Спутниковый слой доступен в WebGL-режиме.');return}state.imagery=!state.imagery;satellite()});
 }
