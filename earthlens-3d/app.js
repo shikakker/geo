@@ -553,9 +553,13 @@ function boot(){
   onSelect:place=>{
    if(app.activeScene)exitScene();
    $('geo-card').hidden=true;
-   window.dispatchEvent(new CustomEvent('earthlens:place-selected',{
-    detail:{title:place.shortName,lat:place.lat,lon:place.lng}
-   }));
+   const selectedPlace={title:place.shortName,lat:place.lat,lon:place.lng};
+   const keepSelected=()=>app.placesHub?.select(selectedPlace);
+   // Fly-to dispatches the global moveend event, which clears any previous
+   // selection. Restore the searched place label AFTER the destination lands.
+   if(app.fallbackActive&&app.leaflet?.once)app.leaflet.once('moveend',keepSelected);
+   else if(app.map?.once)app.map.once('moveend',keepSelected);
+   else keepSelected();
    const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
    app.map?.flyTo({
     center:[place.lng,place.lat],zoom:place.zoom,
