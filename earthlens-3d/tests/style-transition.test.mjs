@@ -27,6 +27,7 @@ test('Basemap style switches preserve existing local data overlays but not stale
  assert.ok(!result.layers.some(x=>x.id==='earthlens-3d-buildings'), 'old incompatible building source must not be retained');
  assert.ok(!result.layers.some(x=>x.id==='third-party-layer'));
  assert.ok(result.layers.findIndex(x=>x.id==='earthlens-3d-tree-canopies')<result.layers.findIndex(x=>x.id==='new-labels'),'basemap labels should remain on top');
+ assert.ok(result.layers.findIndex(x=>x.id==='earthlens-imagery-satellite')<result.layers.findIndex(x=>x.id==='earthlens-3d-tree-canopies'),'satellite imagery must not cover 3D canopy volumes');
  assert.equal(next.layers.length,2,'style transform must not mutate provider specification');
 });
 test('Matching OSM sources retain extrusion layer without duplicates',()=>{
