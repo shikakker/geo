@@ -104,3 +104,15 @@ test('Client abort races shared completion without altering the transport',async
  done('shared-result');
  assert.equal(await task,'shared-result');
 });
+
+
+test('Initial map bundle has a strict performance budget despite 100 extensions',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const script=await readFile(new URL('../scripts/build.mjs',import.meta.url),'utf8');
+ assert.match(script,/initialLimitBytes=1_650_000/);
+ assert.match(script,/entrySize>initialLimitBytes/);
+ assert.match(script,/EarthLens initial JS exceeded performance budget/);
+ const installed=await readFile(new URL('../geo-addon-enabled.js',import.meta.url),'utf8');
+ assert.match(installed,/suncalc/);
+ assert.doesNotMatch(installed,/import\(['"]h3-js['"]\)/);
+});
