@@ -233,3 +233,14 @@
 .search-results .search-option:focus-visible{outline:2px solid #bdf8cd;outline-offset:-3px;background:#31533a}
 .search-results[hidden]{display:none!important}
 @media(max-width:540px){.search-results{max-height:min(55dvh,340px)}.search-source{font-size:8px}}
+
+/* Data source health and explicit manual retry without automatic polling. */
+.explore-data-retry{display:flex;flex-direction:column;gap:5px;padding:8px 0;border-top:1px solid #ffffff1a;margin-top:7px}
+.explore-data-retry button{font-size:10px;font-weight:750;background:#284c35;border:1px solid #638971;border-radius:7px;color:#d9efe0;padding:7px 9px;text-align:left}
+.explore-data-retry button:hover{background:#3b6746}
+.explore-data-retry button:focus-visible{outline:2px solid #c1ffce}
+.explore-data-retry small{font-size:9px;line-height:1.35;color:#b6d1bf}
+.explore-panel.collapsed .explore-data-retry{display:none}
+#explore-camera-status{font-size:9px;line-height:1.45;color:#bad7bf}
+#explore-camera-status.is-stale{color:#fbd8a8}
+@media(prefers-reduced-motion:reduce){.explore-data-retry button{transition:none!important}}
