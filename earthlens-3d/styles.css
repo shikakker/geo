@@ -195,3 +195,33 @@
 
 #explore-osm-status{font-size:9px;color:#b7d5bd;line-height:1.4;margin:7px 0}
 #explore-osm-status.is-stale{color:#ffd69b}
+
+/* Product feature: keyboard-accessible, local-only saved places drawer. */
+#saved-places-toggle{font-size:22px;line-height:1;color:#d3ecd9}
+#saved-places-toggle.active{background:#b3e9c1;color:#1e412b}
+.saved-places-panel{position:absolute;z-index:18;top:104px;right:74px;width:min(342px,calc(100vw - 34px));padding:15px;border-radius:12px;max-height:calc(100dvh - 150px);overflow:auto;overscroll-behavior:contain}
+.saved-places-panel[hidden]{display:none!important}
+.saved-places-header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.saved-places-header strong{font-size:11px;letter-spacing:.11em;color:#d9f2df}
+.saved-places-header button{font-size:24px;line-height:1;background:transparent;border:0;color:#e4f4e6;padding:2px 7px}
+.saved-places-description,.saved-places-privacy{font-size:10px;line-height:1.5;color:#b7d2bf;margin:9px 0 12px}
+.saved-places-form{display:flex;align-items:center;gap:6px}
+.saved-places-form input{flex:1;min-width:0;background:#1d3829;color:#f1faee;border:1px solid #6f997c;border-radius:7px;height:36px;padding:0 9px;font-size:11px}
+.saved-places-form button{border:1px solid #bbefc9;background:#b8ecc4;color:#193321;white-space:nowrap;border-radius:7px;padding:0 9px;height:36px;font-size:10px;font-weight:800}
+.saved-places-count{font-size:10px;font-weight:700;color:#c9e8d1;margin:14px 0 6px}
+.saved-places-list{display:flex;flex-direction:column;gap:6px;max-height:42dvh;overflow:auto}
+.saved-places-empty{font-size:11px;color:#9cbea6;margin:10px 0}
+.saved-place-item{display:flex;gap:5px;align-items:center;background:#2444319c;border:1px solid #63856b68;border-radius:8px;min-height:51px}
+.saved-place-open{flex:1;min-width:0;text-align:left;background:transparent;border:0;color:#e9f7ec;padding:9px 7px 9px 10px}
+.saved-place-open strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.saved-place-open small{display:block;font-size:9px;color:#a5c9b1;margin-top:4px}
+.saved-place-open:hover{background:#53795a31}
+.saved-place-remove{flex:none;border:0;background:transparent;color:#d8e9da;padding:6px 10px;font-size:20px}
+.saved-place-remove:hover{color:#ffc5b6}
+.app.in-splat #saved-places-panel{display:none!important}
+@media(max-width:850px){
+ .saved-places-panel{top:77px;right:59px;max-height:calc(100dvh - 150px);width:min(320px,calc(100vw - 76px));padding:12px}
+ .saved-places-form{flex-wrap:wrap}.saved-places-form input{flex-basis:100%}.saved-places-form button{width:100%}
+}
+@media(max-width:540px){.saved-places-panel{right:50px;max-height:calc(100dvh - 170px);width:min(302px,calc(100vw - 59px))}.saved-places-list{max-height:34dvh}}
+@media(prefers-reduced-motion:reduce){.saved-places-panel *{transition:none!important;animation:none!important}}
