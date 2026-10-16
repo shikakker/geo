@@ -39,5 +39,5 @@ export function inViewport(feature,center,zoom){
  return Math.abs(lat-center.lat)<Math.max(.002,approximateLatitude)&&deltaLon<Math.max(.002,approximateLongitude/Math.max(.2,Math.cos(center.lat*Math.PI/180)));
 }
 export function withinMarkers(feature,center,zoom,kind){
- return kind==='weather'||inViewport(feature,center,zoom);
+ return inViewport(feature,center,kind==='weather'?Math.min(zoom,11):zoom);
 }
