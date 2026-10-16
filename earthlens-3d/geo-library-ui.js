@@ -1,15 +1,15 @@
-// UI-only 100 library catalog. Zero packages are downloaded by opening it.
+// UI-only 200 library catalog. Zero packages are downloaded by opening it.
 // Browser UI copies a developer install command; it NEVER installs npm modules.
-import {GEO_LIBRARY_CATALOG,GEO_LIBRARY_GROUPS,filterGeoLibraries} from './geo-library-catalog.js';
+import {GEO_LIBRARY_CATALOG,GEO_LIBRARY_GROUPS,filterGeoLibraries} from './geo-library-combined.js';
 import {GEO_ENABLED_LIBRARIES} from './geo-addon-enabled.js';
 export function attachGeoCatalog(panel){
  if(!panel||panel.querySelector('#explore-library-catalog'))return;
  const root=document.createElement('details');root.id='explore-library-catalog';root.className='explore-market';
- const summary=document.createElement('summary');summary.textContent='100 дополнительных GIS-библиотек';root.append(summary);
+ const summary=document.createElement('summary');summary.textContent='200 дополнительных GIS-библиотек';root.append(summary);
  const wrap=document.createElement('div');wrap.className='explore-market-body';
- const explanation=document.createElement('p');explanation.textContent='Каталог, не 100 установленных пакетов. Подключайте по одному через npm, чтобы карта не тормозила.';wrap.append(explanation);
+ const explanation=document.createElement('p');explanation.textContent='Каталог, не 200 установленных пакетов. Подключайте по одному через npm, чтобы карта не тормозила.';wrap.append(explanation);
  const filters=document.createElement('div');filters.className='explore-market-filters';
- const search=document.createElement('input');search.type='search';search.placeholder='Найти библиотеку';search.setAttribute('aria-label','Поиск по 100 GIS-библиотекам');
+ const search=document.createElement('input');search.type='search';search.placeholder='Найти библиотеку';search.setAttribute('aria-label','Поиск по 200 GIS-библиотекам');
  const category=document.createElement('select');category.setAttribute('aria-label','Категория GIS-библиотек');
  const all=document.createElement('option');all.value='';all.textContent='Все категории';category.append(all);
  for(const [label,names] of GEO_LIBRARY_GROUPS){const option=document.createElement('option');option.value=label;option.textContent=label+' · '+names.length;category.append(option)}
@@ -24,7 +24,7 @@ export function attachGeoCatalog(panel){
   list.replaceChildren();
   const visible=found.slice(0,20);
   const enabled=GEO_LIBRARY_CATALOG.filter(item=>Object.hasOwn(GEO_ENABLED_LIBRARIES,item.package)).length;
-  count.textContent=found.length+' найдено · '+enabled+' из 100 дополнительных установлено · первые '+visible.length;
+  count.textContent=found.length+' найдено · '+enabled+' из 200 дополнительных установлено · первые '+visible.length;
   for(const lib of visible){
    const item=document.createElement('div');item.className='explore-market-item';item.setAttribute('role','listitem');
    const link=document.createElement('a');link.href=lib.info;link.target='_blank';link.rel='noopener noreferrer';link.textContent=lib.package;link.title=lib.category+' · npm';
