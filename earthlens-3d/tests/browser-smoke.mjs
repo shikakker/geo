@@ -92,6 +92,8 @@ for (const {name,width,height,isMobile} of [
     if(metrics.webgl2)assert.equal(metrics.engine,'webgl-3d','WebGL2 is present: show the native tilted 3D globe/building renderer, not a flat fallback');
     else assert.equal(metrics.engine,'webgl-3d','WebGL map must operate in true 3D mode');
     assert.ok(metrics.spinnerHidden,'Blocking spinner must be removed when map is ready');
+    assert.equal(await page.locator('#map-retry').isVisible(),false,
+      'Successful map startup must not show failure-recovery action');
     assert.ok(metrics.searchVisible,'Search must remain usable');
     assert.ok(metrics.searchButtonRight<=width+1,'Search submit button must fit inside viewport');
     if(isMobile){
