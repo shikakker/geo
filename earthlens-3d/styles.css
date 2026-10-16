@@ -122,3 +122,22 @@
 @media(prefers-reduced-motion:reduce){
  .explore-marker-shell .explore-marker,.explore-leaflet .explore-marker,.explore-detail:not([hidden]),.explore-gallery img,.explore-camera-image,.leaflet-tile-loaded{animation:none!important;transition:none!important}
 }
+
+/* v0.5: a small non-blocking map tile progress strip and responsive forecast control. */
+.earthlens-stream-status{position:absolute;top:92px;left:50%;transform:translate(-50%,-8px);z-index:14;display:flex;align-items:center;gap:8px;min-width:178px;max-width:calc(100vw - 34px);padding:7px 12px;border-radius:9px;color:#d5f0db;font-size:10px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .3s ease,transform .3s ease,visibility .3s}
+.earthlens-stream-status.is-visible{opacity:1;visibility:visible;transform:translate(-50%,0)}
+.stream-pulse{display:inline-block;width:7px;height:7px;border-radius:50%;background:#b3ebc5;box-shadow:0 0 0 3px #b3ebc528;flex:none}
+.stream-message{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stream-track{position:absolute;height:2px;background:#335646;left:0;right:0;bottom:0;overflow:hidden;border-radius:0 0 9px 9px}
+.stream-track>span{display:block;height:2px;width:42%;background:linear-gradient(90deg,#719e80,#d7ffe2,#719e80);animation:earthlens-tile-progress 1.2s ease-in-out infinite alternate}
+@keyframes earthlens-tile-progress{from{transform:translateX(-100%)}to{transform:translateX(270%)}}
+.explore-weather-hours{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:9px;padding-top:9px;border-top:1px solid rgba(188,225,198,.16)}
+.explore-weather-hours[hidden]{display:none!important}
+.explore-weather-hours>span{width:100%;font-size:8px;color:#a9c8b2;font-weight:800;letter-spacing:.07em}
+.explore-weather-hours button{background:#1d3528;color:#d1e9d6;border:1px solid #50775a;padding:5px 6px;min-height:29px;border-radius:6px;font-size:10px}
+.explore-weather-hours button[aria-pressed="true"]{background:#bce9c5;color:#193522;border-color:#bce9c5}
+.explore-marker.explore-weather{transition:background-color .55s ease,color .25s ease,box-shadow .25s ease}
+.explore-oss[open]{max-height:210px}
+@media(max-width:850px){.earthlens-stream-status{top:auto;bottom:112px;min-width:0;max-width:calc(100vw - 55px);font-size:9px}}
+@media(max-width:540px){.explore-weather-hours{gap:3px}.explore-weather-hours button{font-size:9px;padding:5px}.earthlens-stream-status{bottom:108px}}
+@media(prefers-reduced-motion:reduce){.earthlens-stream-status,.explore-marker.explore-weather{transition:none!important}.stream-track>span{animation:none!important;width:100%}}
