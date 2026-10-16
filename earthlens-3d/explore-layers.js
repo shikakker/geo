@@ -1,7 +1,10 @@
 import {loadGeoPhotos,PHOTO_PROXIMITY_NOTICE} from './photo-sources.js';
-import {getWeatherForView,temperatureColor} from './weather-layer.js';
+import {getWeatherForView,temperatureColor,WEATHER_HORIZONS} from './weather-layer.js';
 import {createTTLCache,featureKey,tileKey,withinMarkers} from './layer-runtime.js';
 import {GEO_ADDONS} from './geo-addons.js';
+import {GEO_ADDONS_NEXT} from './geo-addons-next.js';
+import {createFrameQueue} from './progressive-render.js';
+import {warmSpatialAcceleration,visibleByDistance} from './spatial-acceleration.js';
 const OVERPASS='https://overpass.kumi.systems/api/interpreter';
 const THEMES=[
  {id:'addresses',name:'Адреса',symbol:'⌂',on:true},
@@ -30,7 +33,7 @@ const bound=(x,min,max)=>Math.min(max,Math.max(min,x));
 const isCoord=x=>Number.isFinite(x)&&Math.abs(x)<=180;
 const cache=new Map();
 const canopyPolygon=(lon,lat,radiusMeters)=>{const latScale=radiusMeters/111320,lonScale=latScale/Math.max(.2,Math.cos(lat*Math.PI/180));const ring=[];for(let i=0;i<=10;i++){const a=i*Math.PI/5;ring.push([lon+Math.cos(a)*lonScale,lat+Math.sin(a)*latScale])}return [ring]};
-const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),controller:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],osmCache:createTTLCache({limit:28,ttlMs:240000}),base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null};
+const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),frameQueue:createFrameQueue(),controller:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null};
 const providers=[
  {id:'airbnb',name:'Airbnb',url:(lat,lon)=>'https://www.airbnb.com/s/'+lat+','+lon+'/homes'},
  {id:'booking',name:'Booking',url:(lat,lon)=>'https://www.booking.com/searchresults.html?ss='+encodeURIComponent(lat+','+lon)},
@@ -56,7 +59,7 @@ function openDetail(feature){
  const title=p['addr:housenumber']&&p['addr:street']?p['addr:street']+', '+p['addr:housenumber']:label;
  const kind=p._kind||'Место';
  if(kind==='weather'){
-   apiPopup('Погода · '+Number(lat).toFixed(3)+'°, '+Number(lon).toFixed(3)+'°', 'Модель Open-Meteo · прогноз текущих условий, не измерение на месте');
+   apiPopup('Погода · '+Number(lat).toFixed(3)+'°, '+Number(lon).toFixed(3)+'°', 'Модель Open-Meteo · '+(p.horizonHours?'прогноз +'+p.horizonHours+' ч':'текущие условия')+' · не измерение на месте');
    const details=document.createElement('div');details.className='explore-weather-grid';
    const metrics=[['Температура',p.temperature,'°C'],['Ощущается',p.feels,'°C'],['Ветер',p.wind,'км/ч'],['Осадки',p.precipitation,'мм'],['Облачность',p.clouds,'%'],['Влажность',p.humidity,'%'],['Давление',p.pressure,'гПа']];
    metrics.forEach(([key,value,unit])=>{if(value===null||value===undefined)return;const cell=document.createElement('div');cell.className='explore-weather-cell';const k=document.createElement('small');k.textContent=key;const v=document.createElement('b');v.textContent=String(Math.round(Number(value)*10)/10)+' '+unit;cell.append(k,v);details.append(cell)});
@@ -138,6 +141,7 @@ function markerContent(kind){
  return defs[kind]||'•';
 }
 function clearMarkers(){
+ state.frameQueue.cancel();
  for(const entry of state.markerIndex.values())try{entry.marker.remove()}catch{}
  state.markerIndex.clear();state.markers=[];
 }
@@ -169,23 +173,26 @@ function drawTreeVolumes(features){
 }
 function draw(){
  if(!state.map)return;
- const all=[...state.features,...state.cameraFeatures,...state.weatherFeatures];
  drawTreeVolumes(state.features);
+ const all=[...state.features,...state.cameraFeatures,...state.weatherFeatures];
  const center=state.map.getCenter(),zoom=state.map.getZoom();
  const isSmall=window.innerWidth<600||navigator.deviceMemory&&navigator.deviceMemory<=4;
  const limit=state.fallback?95:isSmall?110:210;
- const target=all.filter(f=>state.active.has(f.properties._kind)&&(zoom>=13||f.properties._kind==='weather')&&withinMarkers(f,center,zoom,f.properties._kind))
-  .sort((a,b)=>{const x=a.geometry.coordinates,y=b.geometry.coordinates;const ca=(x[0]-center.lng)**2+(x[1]-center.lat)**2,cb=(y[0]-center.lng)**2+(y[1]-center.lat)**2;return ca-cb})
-  .slice(0,limit);
- const visible=new Set();
- for(let i=0;i<target.length;i++){
-  const f=target[i],kind=f.properties._kind,pos=f.geometry.coordinates,key=featureKey(f);
-  visible.add(key);
+ const eligible=all.filter(f=>state.active.has(f.properties._kind)&&(zoom>=13||f.properties._kind==='weather'));
+ const target=visibleByDistance(eligible,center,zoom,limit);
+ const visible=new Set(target.map(featureKey));
+ state.frameQueue.submit(target,(f,i)=>{
+  if(!state.map)return;
+  const kind=f.properties._kind,pos=f.geometry.coordinates,key=featureKey(f);
   let entry=state.markerIndex.get(key);
   if(entry){
    entry.feature=f;
-   if(kind==='weather'){entry.inner.textContent=f.properties.symbol+' '+Math.round(f.properties.temperature)+'°';entry.inner.style.backgroundColor=f.properties._color||'#35647c'}
-   continue;
+   if(kind==='weather'){
+    entry.inner.textContent=f.properties.symbol+' '+Math.round(f.properties.temperature)+'°';
+    entry.inner.style.backgroundColor=f.properties._color||'#35647c';
+    try{if(state.fallback)entry.marker.setLatLng([pos[1],pos[0]]);else entry.marker.setLngLat(pos)}catch{}
+   }
+   return;
   }
   const text=kind==='weather'?f.properties.symbol+' '+Math.round(f.properties.temperature)+'°':markerContent(kind);
   const shell=document.createElement('div');shell.className='explore-marker-shell';
@@ -203,20 +210,23 @@ function draw(){
    entry.marker=marker;entry.element=marker.getElement()||shell;
    entry.inner=entry.element.querySelector('.explore-marker')||button;
    entry.element.style.setProperty('--appear-delay',String(Math.min(i,16)*22)+'ms');
+   if(kind==='weather')entry.inner.style.backgroundColor=f.properties._color||'#35647c';
   }else if(state.maplibre)entry.marker=new state.maplibre.Marker({element:shell,anchor:'center'}).setLngLat(pos).addTo(state.map);
-  else continue;
+  else return;
   state.markerIndex.set(key,entry);
- }
- for(const [key,entry] of state.markerIndex){
-  if(visible.has(key))continue;
-  state.markerIndex.delete(key);
-  if(entry.element){entry.element.classList.add('is-leaving');entry.element.style.pointerEvents='none'}
-  const reduceMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
-  if(reduceMotion)entry.marker.remove();
-  else setTimeout(()=>{try{entry.marker.remove()}catch{}},230);
- }
- state.markers=[...state.markerIndex.values()].map(entry=>entry.marker);
- el('explore-count').textContent=target.length+' объектов на карте';
+ },()=>{
+  for(const [key,entry] of state.markerIndex){
+   if(visible.has(key))continue;
+   state.markerIndex.delete(key);
+   if(entry.element){entry.element.classList.add('is-leaving');entry.element.style.pointerEvents='none'}
+   const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
+   if(reduced)entry.marker.remove();
+   else setTimeout(()=>{try{entry.marker.remove()}catch{}},230);
+  }
+  state.markers=[...state.markerIndex.values()].map(entry=>entry.marker);
+  const info=el('explore-count');
+  if(info)info.textContent=target.length+' объектов на карте';
+ },{batch:isSmall?12:26,budgetMs:6});
 }
 async function load(){
  if(!state.map||!el('explore-panel'))return;
@@ -246,7 +256,7 @@ async function load(){
   return features;
  })();
  const cameraTask=state.active.has('cameras')&&zoom>=13?cameras():Promise.resolve([]);
- const weatherTask=state.active.has('weather')?getWeatherForView({center,zoom,signal:ctl.signal}):Promise.resolve([]);
+ const weatherTask=state.active.has('weather')?getWeatherForView({center,zoom,signal:ctl.signal,offsetHours:state.weatherOffsetHours}):Promise.resolve([]);
  const current=()=>seq===state.seq&&!ctl.signal.aborted;
  const osmDone=osmTask.then(features=>{
   if(!current())return;
@@ -262,7 +272,7 @@ async function load(){
    ...feature,properties:{...feature.properties,_color:await temperatureColor(feature.properties.temperature)}
   })));
   if(!current())return;
-  state.weatherFeatures=coloured;state.weatherError=false;
+  state.weatherFeatures=coloured;state.weatherError=state.active.has('weather')&&coloured.length===0;
   const note=el('explore-weather-status');
   if(note){note.hidden=!state.active.has('weather');note.textContent=state.active.has('weather')?'Прогноз Open-Meteo · кеш 15 минут':''}
   draw();
