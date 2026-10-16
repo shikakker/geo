@@ -30,7 +30,7 @@ const bound=(x,min,max)=>Math.min(max,Math.max(min,x));
 const isCoord=x=>Number.isFinite(x)&&Math.abs(x)<=180;
 const cache=new Map();
 const canopyPolygon=(lon,lat,radiusMeters)=>{const latScale=radiusMeters/111320,lonScale=latScale/Math.max(.2,Math.cos(lat*Math.PI/180));const ring=[];for(let i=0;i<=10;i++){const a=i*Math.PI/5;ring.push([lon+Math.cos(a)*lonScale,lat+Math.sin(a)*latScale])}return [ring]};
-const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),controller:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],osmCache:createTTLCache({limit:28,ttlMs:240000}),base:'streets',imagery:false,weatherError:false,treeStyleEpoch:0};
+const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),controller:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],osmCache:createTTLCache({limit:28,ttlMs:240000}),base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null};
 const providers=[
  {id:'airbnb',name:'Airbnb',url:(lat,lon)=>'https://www.airbnb.com/s/'+lat+','+lon+'/homes'},
  {id:'booking',name:'Booking',url:(lat,lon)=>'https://www.booking.com/searchresults.html?ss='+encodeURIComponent(lat+','+lon)},
@@ -147,8 +147,10 @@ function drawTreeVolumes(features){
  const treeFeatures=state.active.has('trees')?features.filter(f=>f.properties._kind==='trees'&&f.properties.natural==='tree').slice(0,280).map(f=>{const [lon,lat]=f.geometry.coordinates;const height=bound(Number(f.properties.height)||9,3,32),diameter=bound(Number(f.properties.diameter_crown)||5,2,20);return {type:'Feature',geometry:{type:'Polygon',coordinates:canopyPolygon(lon,lat,diameter/2)},properties:{height,base:height*.37}}}):[];
  const geojson={type:'FeatureCollection',features:treeFeatures};
  try{
-  if(map.getSource(source))map.getSource(source).setData(geojson);
-  else map.addSource(source,{type:'geojson',data:geojson});
+  if(map.getSource(source)){
+   if(state.lastTreeSource!==features||state.lastTreeEnabled!==state.active.has('trees'))map.getSource(source).setData(geojson);
+  }else map.addSource(source,{type:'geojson',data:geojson});
+  state.lastTreeSource=features;state.lastTreeEnabled=state.active.has('trees');
   if(!map.getLayer(layer)){
    const reduceMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
    map.addLayer({id:layer,type:'fill-extrusion',source,minzoom:14.4,paint:{
@@ -168,7 +170,7 @@ function drawTreeVolumes(features){
 function draw(){
  if(!state.map)return;
  const all=[...state.features,...state.cameraFeatures,...state.weatherFeatures];
- drawTreeVolumes(all);
+ drawTreeVolumes(state.features);
  const center=state.map.getCenter(),zoom=state.map.getZoom();
  const isSmall=window.innerWidth<600||navigator.deviceMemory&&navigator.deviceMemory<=4;
  const limit=state.fallback?95:isSmall?110:210;
