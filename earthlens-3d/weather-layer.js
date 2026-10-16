@@ -3,6 +3,7 @@
 import {loadGeoAddon} from './geo-addons.js';
 const API='https://api.open-meteo.com/v1/forecast';
 const CURRENT='temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m,pressure_msl';
+export const WEATHER_HORIZONS=Object.freeze([0,3,6,12]);
 const TTL=15*60*1000;
 const cache=new Map();
 export function weatherSymbol(code){
@@ -32,14 +33,29 @@ export function weatherRequest(samples){
  const p=new URLSearchParams({
   latitude:samples.map(x=>x.lat.toFixed(3)).join(','),
   longitude:samples.map(x=>x.lon.toFixed(3)).join(','),
-  current:CURRENT,timezone:'auto',forecast_days:'1'
+  current:CURRENT,hourly:CURRENT,timezone:'auto',forecast_days:'2'
  });
  return API+'?'+p;
 }
-export function weatherFeatures(samples,raw){
+export function forecastAt(record,hours=0){
+ if(hours===0)return record?.current||null;
+ const hourly=record?.hourly;
+ const times=hourly?.time;
+ if(!Array.isArray(times)||!times.length)return null;
+ const parse=t=>typeof t==='string'?Date.parse(t+(t.endsWith('Z')?'':'Z')):NaN;
+ const anchor=parse(record?.current?.time||times[0]);
+ if(!Number.isFinite(anchor))return null;
+ const target=anchor+hours*3600*1000;
+ const index=times.findIndex(t=>parse(t)>=target);
+ if(index<0)return null;
+ const info={time:times[index]};
+ for(const key of CURRENT.split(','))info[key]=Array.isArray(hourly[key])?hourly[key][index]:null;
+ return info;
+}
+export function weatherFeatures(samples,raw,hours=0){
  const values=Array.isArray(raw)?raw:[raw];
  return samples.flatMap((point,i)=>{
-  const info=values[i]?.current||{};
+  const info=forecastAt(values[i],hours)||{};
   const temp=Number(info.temperature_2m);
   if(info.temperature_2m===null||info.temperature_2m===undefined||!Number.isFinite(temp))return [];
   const num=value=>value===null||value===undefined||!Number.isFinite(Number(value))?null:Number(value);
@@ -53,19 +69,20 @@ export function weatherFeatures(samples,raw){
     precipitation:num(info.precipitation),clouds:num(info.cloud_cover),
     wind:num(info.wind_speed_10m),windDirection:num(info.wind_direction_10m),
     pressure:num(info.pressure_msl),weatherCode:num(info.weather_code),
-    updated:String(info.time||''),symbol:weatherSymbol(info.weather_code),
+    updated:String(info.time||''),horizonHours:hours,symbol:weatherSymbol(info.weather_code),
     source:'Open-Meteo (model forecast)'
    }
   }];
  });
 }
-export async function getWeatherForView({center,zoom,signal,fetcher=fetch}){
+export async function getWeatherForView({center,zoom,signal,offsetHours=0,fetcher=fetch}){
+ if(!WEATHER_HORIZONS.includes(offsetHours))throw Error('Unsupported weather horizon');
  const samples=weatherSamples(center,zoom);
  if(!samples.length)return [];
  const precision=zoom>=12?2:zoom>=8?1:0;
  const key=[Math.round(zoom>=12?12:zoom>=10?10:zoom>=8?8:6),samples.length,Number(center.lat).toFixed(precision),Number(center.lng).toFixed(precision)].join(':');
  const hit=cache.get(key);
- if(hit&&Date.now()-hit.time<TTL)return weatherFeatures(samples,hit.raw);
+ if(hit&&Date.now()-hit.time<TTL)return weatherFeatures(samples,hit.raw,offsetHours);
  const url=weatherRequest(samples);
  const controller=new AbortController();
  const abort=()=>controller.abort();
@@ -76,7 +93,7 @@ export async function getWeatherForView({center,zoom,signal,fetcher=fetch}){
   const response=await fetcher(url,{signal:controller.signal,headers:{Accept:'application/json'}});
   if(!response.ok)throw new Error('Weather API HTTP '+response.status);
   const data=await response.json();
-  const features=weatherFeatures(samples,data);
+  const features=weatherFeatures(samples,data,offsetHours);
   if(signal?.aborted)throw new DOMException('Aborted','AbortError');
   cache.set(key,{time:Date.now(),raw:data});
   if(cache.size>24)cache.delete(cache.keys().next().value);
