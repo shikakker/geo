@@ -1,0 +1,37 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {createCandidateCache,visibleByDistance,warmSpatialAcceleration} from '../spatial-acceleration.js';
+const read=name=>readFile(new URL('../'+name,import.meta.url),'utf8');
+const feature=(id,kind,lon=4.9)=>({id,geometry:{type:'Point',coordinates:[lon,52.37]},properties:{_kind:kind}});
+test('Camera pans retain same candidate array and KDBush index',async()=>{
+ const cache=createCandidateCache();
+ const osm=Array.from({length:110},(_,i)=>feature(i,'trees',4.85+i*.001));
+ const weather=[feature('weather','weather',4.9)];
+ const active=new Set(['trees','weather']);
+ const args={osm,cameras:[],weather,active,zoom:15};
+ const first=cache.get(args);
+ const again=cache.get({...args,zoom:15.4});
+ assert.strictEqual(first,again,'A pan and continuous zoom in same visibility band MUST keep one spatial index');
+ assert.equal(cache.rebuilds,1);
+ await warmSpatialAcceleration();
+ assert.equal(visibleByDistance(first,{lat:52.37,lng:4.9},15.4,20).length,20);
+ assert.strictEqual(first,cache.get(args));
+ assert.equal(cache.rebuilds,1);
+ assert.notStrictEqual(first,cache.get({...args,zoom:12.9}),'Low zoom omits POIs');
+ assert.equal(cache.get({...args,zoom:12.9}).length,1);
+ assert.equal(cache.get({...args,zoom:15}).length,111);
+ assert.notStrictEqual(first,cache.get({...args,active:new Set(['weather'])}),'Layer toggles invalidate cached candidates');
+ assert.notStrictEqual(first,cache.get({...args,osm:osm.slice()}),'New source data invalidates cached candidates');
+});
+test('Fading markers can be revived before delayed removal without duplicate DOM',async()=>{
+ const js=await read('explore-layers.js');
+ assert.match(js,/exitingMarkers:new Map/);
+ assert.match(js,/state\.exitingMarkers\.has\(key\)/);
+ assert.match(js,/clearTimeout\(entry\.removalTimer\)/);
+ assert.match(js,/state\.markerIndex\.set\(key,entry\)/);
+ assert.match(js,/state\.exitingMarkers\.delete\(key\)/);
+ assert.match(js,/function drawNow\(\)/);
+ assert.match(js,/drawRaf=requestAnimationFrame/);
+ assert.match(js,/state\.candidates\.get\(/);
+});
