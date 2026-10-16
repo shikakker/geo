@@ -71,6 +71,9 @@ function openDetail(feature){
  const label=p.name||p['addr:street']||p.description||'Место на карте';
  const title=p['addr:housenumber']&&p['addr:street']?p['addr:street']+', '+p['addr:housenumber']:label;
  const kind=p._kind||'Место';
+ if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('earthlens:place-selected',{
+  detail:{title,lat,lon}
+ }));
  if(kind==='weather'){
    apiPopup('Погода · '+Number(lat).toFixed(3)+'°, '+Number(lon).toFixed(3)+'°', weatherDescription(p));
    const details=document.createElement('div');details.className='explore-weather-grid';
