@@ -21,8 +21,17 @@ for (const {name,width,height,isMobile} of [
   await page.route(url=>url.hostname==='api.open-meteo.com'&&url.pathname==='/v1/forecast',async route=>{
     const url=new URL(route.request().url());
     const points=(url.searchParams.get('latitude')||'').split(',').map(Number);
-    const record=()=>({current:{temperature_2m:17.4,weather_code:2,apparent_temperature:16.2,
-      wind_speed_10m:13.2,cloud_cover:45,precipitation:0,relative_humidity_2m:63,pressure_msl:1015}});
+    const record=()=>{
+      const current={time:'2026-10-16T12:00',temperature_2m:17.4,weather_code:2,apparent_temperature:16.2,
+        wind_speed_10m:13.2,cloud_cover:45,precipitation:0,relative_humidity_2m:63,pressure_msl:1015};
+      const times=['2026-10-16T12:00','2026-10-16T15:00','2026-10-16T18:00','2026-10-17T00:00'];
+      const hourly={time:times};
+      for(const [key,value] of Object.entries(current)){
+        if(key==='time')continue;
+        hourly[key]=[value,key==='temperature_2m'?21.6:value,key==='temperature_2m'?16.3:value,key==='temperature_2m'?10.2:value];
+      }
+      return {current,hourly};
+    };
     await route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},
       body:JSON.stringify(points.length>1?points.map(record):record())});
   });
@@ -85,6 +94,12 @@ for (const {name,width,height,isMobile} of [
     await detail.locator('.explore-weather-cell').first().waitFor({timeout:6000});
     assert.match(await detail.innerText(),/Open-Meteo/);
     assert.match(await detail.innerText(),/17.4/);
+    assert.equal(await page.locator('#earthlens-stream-status').count(),1,'Map tile progress indicator must exist');
+    await page.locator('[data-weather-hour="3"]').click();
+    await page.waitForFunction(()=>[...document.querySelectorAll('.explore-weather')].some(el=>el.textContent.includes('22°')),null,{timeout:17000});
+    await marker.click();
+    assert.match(await detail.innerText(),/21.6/,'Forecast +3h must use hourly provider data');
+    assert.match(await detail.innerText(),/прогноз \+3 ч/,'Forecast card must label prediction horizon');
     await page.screenshot({path:'screenshots/earthlens-'+name+'-weather.png',animations:'disabled'});
     assert.ok(!errors.some(x=>/SyntaxError|does not provide an export|Failed to resolve module specifier/.test(x)),'Progressive weather map must not throw module errors');
     console.log(JSON.stringify({name,pass:true,metrics,weather:true,pageErrors:errors,consoleWarnings:consoleWarnings.slice(0,12),failedResponses:failedResponses.slice(0,12)}));
