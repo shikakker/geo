@@ -10,6 +10,7 @@ import {attachGeoCatalog} from './geo-library-ui.js';
 import {solarPosition} from './solar-position.js';
 import {createFrameQueue} from './progressive-render.js';
 import {warmSpatialAcceleration,visibleByDistance} from './spatial-acceleration.js';
+import {createAdaptiveQuality,beginMoveFpsSampling} from './adaptive-quality.js';
 const THEMES=[
  {id:'addresses',name:'Адреса',symbol:'⌂',on:true},
  {id:'trees',name:'Деревья и природа',symbol:'♣',on:true},
@@ -37,7 +38,7 @@ const bound=(x,min,max)=>Math.min(max,Math.max(min,x));
 const isCoord=x=>Number.isFinite(x)&&Math.abs(x)<=180;
 const cache=new Map();
 const canopyPolygon=(lon,lat,radiusMeters)=>{const latScale=radiusMeters/111320,lonScale=latScale/Math.max(.2,Math.cos(lat*Math.PI/180));const ring=[];for(let i=0;i<=10;i++){const a=i*Math.PI/5;ring.push([lon+Math.cos(a)*lonScale,lat+Math.sin(a)*latScale])}return [ring]};
-const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null,treeIndex:null,treeEpoch:0};
+const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',qualityPreference:'auto',qualityController:null,stopFpsSampling:null,selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null,treeIndex:null,treeEpoch:0};
 const providers=[
  {id:'airbnb',name:'Airbnb',url:(lat,lon)=>'https://www.airbnb.com/s/'+lat+','+lon+'/homes'},
  {id:'booking',name:'Booking',url:(lat,lon)=>'https://www.booking.com/searchresults.html?ss='+encodeURIComponent(lat+','+lon)},
@@ -412,7 +413,9 @@ function updateToggles(){
  const row=el('explore-weather-hours');
  if(row)row.hidden=!state.active.has('weather');
  document.querySelectorAll('[data-weather-hour]').forEach(btn=>btn.setAttribute('aria-pressed',String(Number(btn.dataset.weatherHour)===state.weatherOffsetHours)));
- document.querySelectorAll('[data-render-quality]').forEach(btn=>btn.setAttribute('aria-pressed',String(btn.dataset.renderQuality===state.quality)));
+ document.querySelectorAll('[data-render-quality]').forEach(btn=>btn.setAttribute('aria-pressed',String(btn.dataset.renderQuality===state.qualityPreference)));
+ const status=el('explore-quality-status');
+ if(status)status.textContent=(state.qualityPreference==='auto'?'Авто · ':'')+(state.quality==='smooth'?'плавно':'подробно');
 }
 function satellite(){
  if(state.fallback){el('explore-satellite').setAttribute('aria-pressed','false');return}
@@ -439,7 +442,7 @@ function satellite(){
 function buildPanel(){
  if(el('explore-panel'))return;
  const aside=document.createElement('aside');aside.id='explore-panel';aside.className='explore-panel glass';
- aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник</button><span id="explore-count">Готово</span></div><p id="explore-weather-status" class="explore-licence" hidden></p><div class="explore-render-quality" role="group" aria-label="Качество отображения карты"><span>ОБЪЕКТЫ</span><button type="button" data-render-quality="smooth" aria-pressed="true">Плавно</button><button type="button" data-render-quality="detail" aria-pressed="false">Подробно</button></div><details class="explore-oss"><summary>30 GIS-библиотек · 10 новых</summary><span>Подключаются по необходимости, без API-квот</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
+ aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник</button><span id="explore-count">Готово</span></div><p id="explore-weather-status" class="explore-licence" hidden></p><div class="explore-render-quality" role="group" aria-label="Качество отображения карты"><span>ОБЪЕКТЫ</span><button type="button" data-render-quality="auto" aria-pressed="true">Авто</button><button type="button" data-render-quality="smooth" aria-pressed="false">Плавно</button><button type="button" data-render-quality="detail" aria-pressed="false">Подробно</button><small id="explore-quality-status" aria-live="polite">Авто · плавно</small></div><details class="explore-oss"><summary>30 GIS-библиотек · 10 новых</summary><span>Подключаются по необходимости, без API-квот</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
  el('app').append(aside);
  attachGeoCatalog(aside);
  const weatherHours=document.createElement('div');
@@ -456,12 +459,33 @@ function buildPanel(){
  updateToggles();
  aside.querySelectorAll('[data-explore-layer]').forEach(btn=>btn.addEventListener('click',()=>{const k=btn.dataset.exploreLayer;state.active.has(k)?state.active.delete(k):state.active.add(k);updateToggles();draw();void renderWindVectors();schedule()}));
  aside.querySelectorAll('[data-weather-hour]').forEach(btn=>btn.addEventListener('click',()=>{const h=Number(btn.dataset.weatherHour);if(!WEATHER_HORIZONS.includes(h))return;state.weatherOffsetHours=h;updateToggles();schedule()}));
- aside.querySelectorAll('[data-render-quality]').forEach(btn=>btn.addEventListener('click',()=>{const q=btn.dataset.renderQuality;if(q!=='smooth'&&q!=='detail')return;state.quality=q;state.lastTreeSource=null;state.lastTreeEnabled=null;updateToggles();draw()}));
+ aside.querySelectorAll('[data-render-quality]').forEach(btn=>btn.addEventListener('click',()=>{state.qualityController?.setPreference(btn.dataset.renderQuality)}));
  el('explore-collapse').addEventListener('click',()=>{aside.classList.toggle('collapsed');el('explore-collapse').textContent=aside.classList.contains('collapsed')?'+':'−'});
  el('explore-satellite').addEventListener('click',()=>{if(state.fallback){alert('Спутниковый слой доступен в WebGL-режиме.');return}state.imagery=!state.imagery;satellite()});
 }
+function ensureAdaptiveQuality(){
+ if(state.qualityController)return;
+ const env={
+  width:window.innerWidth,deviceMemory:navigator.deviceMemory??8,
+  connection:navigator.connection?.effectiveType||'4g',
+  reducedMotion:window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true
+ };
+ state.qualityController=createAdaptiveQuality({environment:env,onChange:({mode,effective})=>{
+  state.qualityPreference=mode;
+  if(state.quality!==effective){
+   state.quality=effective;
+   state.lastTreeSource=null;state.lastTreeEnabled=null;
+   draw();
+  }
+  updateToggles();
+ }});
+ state.quality=state.qualityController.effective;
+ state.qualityPreference=state.qualityController.preference;
+}
 export function initExploreLayers({map,maplibre=null,fallback=false,leaflet=null,L=null}){
  state.map=map;state.maplibre=maplibre;state.fallback=fallback;state.leaflet=leaflet;state.L=L;
+ ensureAdaptiveQuality();
+ state.stopFpsSampling?.();state.stopFpsSampling=fallback?null:beginMoveFpsSampling(map,state.qualityController);
  buildPanel();
  map.on?.('moveend',()=>{draw();schedule()});
  if(!fallback)map.on?.('style.load',()=>{state.lastTreeSource=null;satellite();schedule()});
@@ -471,6 +495,8 @@ export function initExploreLayers({map,maplibre=null,fallback=false,leaflet=null
 export function updateExploreMap({map,maplibre=null,fallback=false,leaflet=null,L=null}){
  clearMarkers();state.controller?.abort();
  state.map=map;state.maplibre=maplibre;state.fallback=fallback;state.leaflet=leaflet;state.L=L;
+ ensureAdaptiveQuality();
+ state.stopFpsSampling?.();state.stopFpsSampling=fallback?null:beginMoveFpsSampling(map,state.qualityController);
  if(!el('explore-panel'))buildPanel();
  if(fallback&&leaflet)leaflet.on('moveend',schedule);
  schedule();
