@@ -15,10 +15,10 @@ import {restoredLayers,storeLayers,restoredQuality,storeQuality} from './layer-p
 const THEMES=[
  {id:'addresses',name:'Адреса',symbol:'⌂',on:true},
  {id:'trees',name:'Деревья и природа',symbol:'♣',on:true},
- {id:'cameras',name:'Дорожные камеры',symbol:'▣',on:false},
- {id:'transport',name:'Автобусы и остановки',symbol:'▰',on:false},
- {id:'traffic',name:'Светофоры и дороги',symbol:'◉',on:false},
- {id:'realty',name:'Недвижимость',symbol:'⌗',on:false},
+ {id:'cameras',name:'Камеры · Финляндия',symbol:'▣',on:false},
+ {id:'transport',name:'Остановки автобусов',symbol:'▰',on:false},
+ {id:'traffic',name:'Светофоры',symbol:'◉',on:false},
+ {id:'realty',name:'Здания и аренда',symbol:'⌗',on:false},
  {id:'weather',name:'Погода',symbol:'☀',on:false}
 ];
 const LIBRARIES=[
@@ -567,7 +567,7 @@ function satellite(){
 function buildPanel(){
  if(el('explore-panel'))return;
  const aside=document.createElement('aside');aside.id='explore-panel';aside.className='explore-panel glass';
- aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник</button><span id="explore-count">Готово</span></div><p id="explore-weather-status" class="explore-licence" hidden></p><p id="explore-osm-status" class="explore-licence" role="status" aria-live="polite" hidden></p><p id="explore-camera-status" class="explore-licence" aria-live="polite" hidden></p><div class="explore-data-retry"><button id="explore-retry" type="button" title="Обновить данные активных слоёв">↻ Обновить данные</button><small id="explore-retry-status" aria-live="polite"></small></div><div class="explore-render-quality" role="group" aria-label="Качество отображения карты"><span>ОБЪЕКТЫ</span><button type="button" data-render-quality="auto" aria-pressed="true">Авто</button><button type="button" data-render-quality="smooth" aria-pressed="false">Плавно</button><button type="button" data-render-quality="detail" aria-pressed="false">Подробно</button><small id="explore-quality-status" aria-live="polite">Авто · плавно</small></div><details class="explore-oss"><summary>30 GIS-библиотек · 10 новых</summary><span>Подключаются по необходимости, без API-квот</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
+ aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник</button><span id="explore-count">Готово</span></div><p id="explore-weather-status" class="explore-licence" hidden></p><p id="explore-osm-status" class="explore-licence" role="status" aria-live="polite" hidden></p><p id="explore-camera-status" class="explore-licence" aria-live="polite" hidden></p><div class="explore-data-retry"><button id="explore-retry" type="button" title="Обновить данные активных слоёв">↻ Обновить данные</button><small id="explore-retry-status" aria-live="polite"></small></div><div class="explore-render-quality" role="group" aria-label="Качество отображения карты"><span>ОБЪЕКТЫ</span><button type="button" data-render-quality="auto" aria-pressed="true">Авто</button><button type="button" data-render-quality="smooth" aria-pressed="false">Плавно</button><button type="button" data-render-quality="detail" aria-pressed="false">Подробно</button><small id="explore-quality-status" aria-live="polite">Авто · плавно</small></div><details class="explore-oss"><summary>30 GIS-модулей движка</summary><span>Open-source код без API-оплаты; внешние источники ограничены условиями поставщиков</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
  el('app').append(aside);
  // Keep the actual map visible on phones. Layers are one tap away, not a
  // permanent 160px sidebar covering much of the viewport.
