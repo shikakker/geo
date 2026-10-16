@@ -41,7 +41,7 @@ export function weatherFeatures(samples,raw){
  return samples.flatMap((point,i)=>{
   const info=values[i]?.current||{};
   const temp=Number(info.temperature_2m);
-  if(!Number.isFinite(temp))return [];
+  if(info.temperature_2m===null||info.temperature_2m===undefined||!Number.isFinite(temp))return [];
   const num=value=>value===null||value===undefined||!Number.isFinite(Number(value))?null:Number(value);
   return [{
    type:'Feature',
