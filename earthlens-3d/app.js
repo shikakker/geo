@@ -436,7 +436,7 @@ async function activateRasterFallback(reason){
  let tileCount=0,tileErrors=0;
  const tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
-   maxZoom:19,maxNativeZoom:19,crossOrigin:true,updateWhenIdle:true
+   maxZoom:19,maxNativeZoom:19,crossOrigin:true,updateWhenIdle:true,keepBuffer:window.innerWidth<650?2:4
  }).addTo(raster);
  tiles.on('tileload',()=>{tileCount++;if(tileCount>=4)$('loading').classList.add('hidden')});
  tiles.on('loading',()=>app.stream?.start('Загружаем резервные тайлы…'));
@@ -526,7 +526,16 @@ function boot(){
  app.bootTimer=setTimeout(()=>{if(!app.mapReady)void activateRasterFallback('Map style did not become ready within 12 seconds')},12000);
  if(!supportsWebGL2()){void activateRasterFallback('WebGL2 unavailable');return}
  try{
-   const map=new maplibregl.Map({container:'map',style:MAP_STYLE,...parseHash(),maxPitch:85,fadeDuration:520,canvasContextAttributes:{antialias:true,preserveDrawingBuffer:false},attributionControl:false,hash:false});
+   // Cap framebuffer resolution on high-DPR/mobile graphics hardware while retaining
+   // recently viewed tiles. This avoids unnecessary full redraws during navigation.
+   const compact=window.matchMedia('(max-width: 700px)').matches||(navigator.deviceMemory||8)<=4;
+   const pixelRatio=Math.max(1,Math.min(compact?1.6:2,window.devicePixelRatio||1));
+   const map=new maplibregl.Map({
+    container:'map',style:MAP_STYLE,...parseHash(),maxPitch:85,
+    pixelRatio,maxTileCacheZoomLevels:compact?3:7,fadeDuration:compact?460:720,
+    canvasContextAttributes:{antialias:!compact,preserveDrawingBuffer:false},
+    attributionControl:false,hash:false
+   });
    app.map=map;
    app.stopProgress=watchMapTiles(map,app.stream);
    map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
