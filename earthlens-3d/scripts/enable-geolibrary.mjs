@@ -40,7 +40,7 @@ function list(){
   +GEO_LIBRARY_CATALOG.filter(x=>Object.hasOwn(pkg.dependencies||{},x.package)).length+'\n');
 }
 function npmView(name){
- const raw=execFileSync('npm',['view',name+'@latest','version','license','--json'],{
+ const raw=execFileSync('npm',['view',name+(name==='suncalc'?'@1.9.0':'@latest'),'version','license','--json'],{
   cwd:root,encoding:'utf8',timeout:25000,maxBuffer:128*1024,stdio:['ignore','pipe','pipe']
  });
  const result=JSON.parse(raw);
