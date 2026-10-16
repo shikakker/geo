@@ -35,3 +35,15 @@ test('Fading markers can be revived before delayed removal without duplicate DOM
  assert.match(js,/drawRaf=requestAnimationFrame/);
  assert.match(js,/state\.candidates\.get\(/);
 });
+
+
+test('3D tree crossfade waits for worker-loaded source, keeps old trees on timeout',async()=>{
+ const js=await read('explore-layers.js');
+ assert.match(js,/map\.isSourceLoaded\?\.\(source\)!==true/);
+ assert.match(js,/map\.on\('sourcedata',listener\)/);
+ assert.match(js,/if\(event\.sourceId===source&&event\.isSourceLoaded\)/);
+ assert.match(js,/state\.treeIndex=newIndex/);
+ assert.match(js,/state\.lastTreeSource=null/);
+ assert.match(js,/cancelTreePending\(\)/);
+ assert.match(js,/fill-extrusion-opacity-transition/);
+});
