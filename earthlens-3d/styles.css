@@ -184,3 +184,11 @@
 .explore-photo-progress.is-unavailable{opacity:.25}
 .explore-gallery a{background:linear-gradient(105deg,#234133,#365841,#234133);background-size:220% 100%}
 @media(prefers-reduced-motion:reduce){.explore-photo-progress{transition:none!important}.explore-photo-progress.is-loaded{opacity:1}}
+
+/* v0.8: automatic FPS-aware rendering is an explicit, reversible user option. */
+.explore-render-quality button[data-render-quality="auto"]{border-color:#9abc9a}
+.explore-render-quality button[data-render-quality="auto"][aria-pressed="true"]{background:#c4ead0;color:#183623}
+#explore-quality-status{width:100%;font-size:9px;color:#9fcab0;line-height:1.45;min-height:12px}
+.explore-panel.collapsed .explore-render-quality,.explore-panel.collapsed #explore-library-catalog,.explore-panel.collapsed .explore-oss{display:none}
+@media(max-width:540px){.explore-render-quality button{font-size:9px;min-height:31px;padding:5px 3px}}
+@media(prefers-reduced-motion:reduce){.explore-render-quality button{transition:none!important}}
