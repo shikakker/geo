@@ -93,9 +93,17 @@ for (const {name,width,height,isMobile} of [
       'MapLibre import failed: '+errors.join(' | '));
     await page.locator('.explore-addresses').first().waitFor({state:'visible',timeout:16000});
     await page.locator('.explore-trees').first().waitFor({state:'visible',timeout:16000});
+    // POI tiles must not blink after a quick layer toggle: the same DOM icon
+    // is revived while its exit animation is still pending.
+    await page.locator('.explore-trees').first().evaluate(el=>el.setAttribute('data-identity-probe','reused'));
+    await page.locator('[data-explore-layer="trees"]').evaluate(btn=>btn.click());
+    await page.waitForTimeout(70);
+    await page.locator('[data-explore-layer="trees"]').evaluate(btn=>btn.click());
+    await page.locator('.explore-trees[data-identity-probe="reused"]').first().waitFor({state:'visible',timeout:5000});
+
     assert.match(await page.locator('#explore-osm-status').innerText(),/сохранённые данные/,'Cached OSM provenance must be visible');
     await page.screenshot({path:'screenshots/earthlens-'+name+'.png',animations:'disabled'});
-    // Verify the 100 opt-in libraries are searchable, not preloaded.
+    // Verify the 200 opt-in libraries are searchable, not preloaded.
     const market=page.locator('#explore-library-catalog');
     assert.equal(await market.count(),1);
     await market.evaluate(el=>{el.open=true});
@@ -104,6 +112,11 @@ for (const {name,width,height,isMobile} of [
     });
     assert.equal(await market.locator('.explore-market-item').count(),1);
     assert.match(await market.locator('.explore-market-item a').innerText(),/h3-js/);
+    await market.locator('input[type=search]').evaluate(el=>{
+      el.value='@deck.gl/core';el.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    assert.equal(await market.locator('.explore-market-item').count(),1,'New hundred must be searchable');
+    assert.match(await market.locator('.explore-market-item a').innerText(),/@deck.gl\/core/);
     await market.evaluate(el=>{el.open=false});
     // Weather must render without waiting for a slow/failed Overpass request.
     await page.locator('[data-explore-layer="weather"]').click();
