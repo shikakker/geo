@@ -49,6 +49,15 @@ for (const {name,width,height,isMobile} of [
       body:JSON.stringify([{place_id:555,lat:'52.52',lon:'13.405',
         display_name:'Berlin, Deutschland',boundingbox:['52.45','52.59','13.3','13.5']}])});
   });
+  await page.route(url=>url.pathname==='/api/cameras',async route=>{
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+      source:'Fintraffic Digitraffic',country:'Finland',stale:false,features:[{
+        type:'Feature',id:'camera:C1451601',geometry:{type:'Point',coordinates:[24.94,60.17]},
+        properties:{_kind:'cameras',name:'Helsinki weather camera',
+          _image:'https://weathercam.digitraffic.fi/C1451601.jpg',provider:'Fintraffic Digitraffic'}
+      }]
+    })});
+  });
   const errors = [];
   const failedResponses = [];
   const consoleWarnings=[];
@@ -153,6 +162,10 @@ for (const {name,width,height,isMobile} of [
     assert.match(await market.locator('.explore-market-item a').innerText(),/@deck.gl\/core/);
     await market.evaluate(el=>{el.open=false});
     // Weather must render without waiting for a slow/failed Overpass request.
+    await page.locator('[data-explore-layer="cameras"]').click();
+    await page.waitForFunction(()=>document.querySelector('#explore-camera-status')?.textContent.includes('Fintraffic'),null,{timeout:8000});
+    assert.match(await page.locator('#explore-camera-status').innerText(),/Fintraffic/);
+    await page.locator('[data-explore-layer="cameras"]').click();
     await page.locator('[data-explore-layer="weather"]').click();
     const marker=page.locator('.explore-weather').first();
     await marker.waitFor({state:'visible',timeout:17000});
