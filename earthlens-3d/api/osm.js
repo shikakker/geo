@@ -35,7 +35,7 @@ export function makeOverpassQuery({lat,lon,zoom,layers}){
 }
 async function queryUpstream(query,fetcher){
  let last;
- for(const endpoint of SOURCES){
+ for(const [index,endpoint] of SOURCES.entries()){
   try{
    const response=await fetcher(endpoint,{
     method:'POST',
@@ -45,7 +45,8 @@ async function queryUpstream(query,fetcher){
      'User-Agent':'EarthLens3D/0.5 (https://earthlens-3d.vercel.app; read-only map geodata)'
     },
     body:new URLSearchParams({data:query}),
-    signal:AbortSignal.timeout(6500)
+    // Remain below a typical serverless request deadline even after fallback.
+    signal:AbortSignal.timeout(index===0?4400:3100)
    });
    if(!response.ok)throw Error('Provider status '+response.status);
    const payload=await response.json();
@@ -78,6 +79,10 @@ export default async function handler(req,res){
   send(res,200,result);
  }catch(error){
   console.warn('OSM upstream failed:',String(error?.message||error).slice(0,180));
-  send(res,503,{error:'OSM objects temporarily unavailable',elements:[]});
+  // When providers are down, a previously fetched nearby map can still be used.
+  // The returned stale flag indicates these are not new/realtime observations.
+  if(hit&&Date.now()-hit.time<60*60*1000){
+   send(res,200,{...hit.data,stale:true});
+  }else send(res,503,{error:'OSM objects temporarily unavailable',elements:[]});
  }
 }
