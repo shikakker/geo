@@ -38,7 +38,7 @@ const bound=(x,min,max)=>Math.min(max,Math.max(min,x));
 const isCoord=x=>Number.isFinite(x)&&Math.abs(x)<=180;
 const cache=new Map();
 const canopyPolygon=(lon,lat,radiusMeters)=>{const latScale=radiusMeters/111320,lonScale=latScale/Math.max(.2,Math.cos(lat*Math.PI/180));const ring=[];for(let i=0;i<=10;i++){const a=i*Math.PI/5;ring.push([lon+Math.cos(a)*lonScale,lat+Math.sin(a)*latScale])}return [ring]};
-const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),exitingMarkers:new Map(),drawRaf:null,candidates:createCandidateCache(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',qualityPreference:'auto',qualityController:null,stopFpsSampling:null,selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),osmStatus:'idle',base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null,treeIndex:null,treeEpoch:0};
+const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),exitingMarkers:new Map(),drawRaf:null,candidates:createCandidateCache(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',qualityPreference:'auto',qualityController:null,stopFpsSampling:null,selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),osmStatus:'idle',base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null,treeIndex:null,treeEpoch:0,treePending:null};
 const providers=[
  {id:'airbnb',name:'Airbnb',url:(lat,lon)=>'https://www.airbnb.com/s/'+lat+','+lon+'/homes'},
  {id:'booking',name:'Booking',url:(lat,lon)=>'https://www.booking.com/searchresults.html?ss='+encodeURIComponent(lat+','+lon)},
@@ -192,7 +192,15 @@ function paintWeatherMarker(root,props){
  }
  root.style.backgroundColor=props._color||'#35647c';
 }
+function cancelTreePending(){
+ const pending=state.treePending;
+ if(!pending)return;
+ state.treePending=null;
+ clearTimeout(pending.timer);
+ try{pending.map.off('sourcedata',pending.listener)}catch{}
+}
 function clearMarkers(){
+ cancelTreePending();
  if(state.drawRaf!==null){cancelAnimationFrame(state.drawRaf);state.drawRaf=null}
  state.frameQueue.cancel();
  for(const entry of state.exitingMarkers.values()){
@@ -213,9 +221,11 @@ function drawTreeVolumes(features){
  const changed=state.lastTreeSource!==features||state.lastTreeEnabled!==enabled
    ||(enabled&&!layers.some(id=>map.getLayer(id)));
  if(!changed)return;
+ cancelTreePending();
  state.lastTreeSource=features;state.lastTreeEnabled=enabled;
  if(!enabled){
   ++state.treeEpoch;
+  state.treeIndex=null;
   layers.forEach(id=>{if(map.getLayer(id))map.setLayoutProperty(id,'visibility','none')});
   return;
  }
@@ -253,15 +263,35 @@ function drawTreeVolumes(features){
     }},map.getStyle().layers.find(l=>l.type==='symbol')?.id);
   }
   const epoch=++state.treeEpoch;
-  state.treeIndex=newIndex;
-  requestAnimationFrame(()=>{
-   if(epoch!==state.treeEpoch||!map.getLayer(layer))return;
+  let committed=false;
+  const commit=()=>{
+   if(committed||epoch!==state.treeEpoch||!map.getLayer(layer))return;
+   // setData() parses GeoJSON asynchronously in a worker. Starting the fade
+   // before the source is ready makes trees pop in fully opaque on slow phones.
+   if(map.isSourceLoaded?.(source)!==true)return;
+   committed=true;
+   cancelTreePending();
    map.setPaintProperty(layer,'fill-extrusion-base',['get','base']);
    map.setPaintProperty(layer,'fill-extrusion-height',['get','height']);
    map.setPaintProperty(layer,'fill-extrusion-opacity',.86);
    if(oldIndex!==null&&map.getLayer(layers[oldIndex]))
     map.setPaintProperty(layers[oldIndex],'fill-extrusion-opacity',0);
-  });
+   state.treeIndex=newIndex;
+  };
+  const listener=event=>{
+   if(event.sourceId===source&&event.isSourceLoaded)requestAnimationFrame(commit);
+  };
+  map.on('sourcedata',listener);
+  const timer=setTimeout(()=>{
+   if(!committed&&epoch===state.treeEpoch){
+    // Keep the previous visible geometry if a network/provider fails.
+    state.lastTreeSource=null;
+    console.debug('3D tree source was not ready; retaining previous geometry');
+   }
+   cancelTreePending();
+  },5500);
+  state.treePending={map,listener,timer};
+  requestAnimationFrame(commit);
  }catch(error){console.debug('3D tree transition unavailable',error)}
 }
 // Multiple data sources often finish within one browser frame. Coalesce their
