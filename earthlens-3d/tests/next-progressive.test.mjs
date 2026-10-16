@@ -21,7 +21,7 @@ test('Second expansion adds exactly ten DIFFERENT lazily loaded OSS libraries',a
    assert.ok(['MIT','ISC','BSD-2-Clause'].includes(lib.license));
    assert.equal(typeof lib.load,'function');
  }
- assert.equal(pkg.version,'0.5.0');
+ assert.ok(Number(pkg.version.split('.')[1])>=6,'GIS expansion requires v0.6 or newer');
 });
 
 test('Frame-limited rendering spreads 13 objects across multiple frames',()=>{
