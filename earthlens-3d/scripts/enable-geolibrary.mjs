@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Opt-in GIS library install. Never installs the entire 100-package catalog.
+// Opt-in GIS library install. Never installs the entire 200-package catalog.
 // Each requested package is allowlisted, npm-metadata-checked, license-checked,
 // pinned exactly in package.json, and made available as a static Vite lazy chunk.
 // Usage: npm run geo:add -- h3-js [d3-timer]
@@ -8,7 +8,7 @@ import {execFileSync} from 'node:child_process';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {GEO_LIBRARY_CATALOG,GEO_LIBRARY_GROUPS} from '../geo-library-catalog.js';
+import {GEO_LIBRARY_CATALOG,GEO_LIBRARY_GROUPS} from '../geo-library-combined.js';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const packagePath=path.join(root,'package.json');
@@ -44,7 +44,7 @@ function npmView(name){
   cwd:root,encoding:'utf8',timeout:25000,maxBuffer:128*1024,stdio:['ignore','pipe','pipe']
  });
  const result=JSON.parse(raw);
- if(typeof result?.version!=='string'||!/^\\d+\\.\\d+\\.\\d+(?:[-+][\\w.-]+)?$/.test(result.version))
+ if(typeof result?.version!=='string'||!/^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(result.version))
   throw Error('npm registry did not return a valid version for '+name);
  const license=typeof result.license==='string'?result.license:'';
  if(!allowedLicenses.has(license)&&!(name==='suncalc'&&!license))
@@ -55,7 +55,7 @@ function install(args){
  if(args.length===0||args.length>8)throw Error('Choose 1–8 package names in one command');
  const names=[...new Set(args)];
  for(const name of names){
-  if(!known.has(name))throw Error('Package not in curated 100-library allowlist: '+name);
+  if(!known.has(name))throw Error('Package not in curated 200-library allowlist: '+name);
  }
  const pkg=current(),newNames=names.filter(name=>!Object.hasOwn(pkg.dependencies||{},name));
  if(!newNames.length){
