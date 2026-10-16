@@ -5,7 +5,7 @@ const read=name=>readFile(new URL('../'+name,import.meta.url),'utf8');
 test('Production UX surfaces real provider health and throttles manual retries',async()=>{
  const src=await read('explore-layers.js');
  assert.match(src,/function updateCameraStatus\(/);
- assert.match(src,/source:'Fintraffic Digitraffic'/);
+ assert.match(src,/fetch\('\/api\/cameras'/);
  assert.match(src,/state\.cameraStatus='offline'/);
  assert.match(src,/function retryDataSources\(/);
  assert.match(src,/now-state\.lastManualRetry<9000/);
