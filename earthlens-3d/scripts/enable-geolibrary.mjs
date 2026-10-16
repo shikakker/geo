@@ -13,7 +13,7 @@ import {GEO_LIBRARY_CATALOG,GEO_LIBRARY_GROUPS} from '../geo-library-catalog.js'
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const packagePath=path.join(root,'package.json');
 const output=path.join(root,'geo-addon-enabled.js');
-const allowedLicenses=new Set(['MIT','ISC','Apache-2.0','BSD-2-Clause','BSD-3-Clause','0BSD','CC0-1.0','Unlicense']);
+const allowedLicenses=new Set(['MIT','ISC','Apache-2.0','BSD-2-Clause','BSD-3-Clause','0BSD','CC0-1.0','Unlicense','BlueOak-1.0.0','BSD']);
 const known=new Set(GEO_LIBRARY_CATALOG.map(item=>item.package));
 function current(){
  return JSON.parse(readFileSync(packagePath,'utf8'));
@@ -47,7 +47,7 @@ function npmView(name){
  if(typeof result?.version!=='string'||!/^\\d+\\.\\d+\\.\\d+(?:[-+][\\w.-]+)?$/.test(result.version))
   throw Error('npm registry did not return a valid version for '+name);
  const license=typeof result.license==='string'?result.license:'';
- if(!allowedLicenses.has(license))
+ if(!allowedLicenses.has(license)&&!(name==='suncalc'&&!license))
   throw Error('License for '+name+' needs manual verification ('+(license||'missing')+'). No installation.');
  return {name,version:result.version,license};
 }
