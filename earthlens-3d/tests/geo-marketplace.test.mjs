@@ -19,12 +19,13 @@ test('Exactly 100 ADDITIONAL distinct optional geospatial/3D/weather libraries',
  assert.equal(existing.size,30);
  for(const item of GEO_LIBRARY_CATALOG){
   assert.ok(!existing.has(item.id),'Must add new, not repeated, packages: '+item.id);
-  assert.ok(!Object.hasOwn(pkg.dependencies,item.package),'Catalog should not secretly install 100 dependencies: '+item.package);
+  if(Object.hasOwn(pkg.dependencies,item.package))assert.ok(Object.hasOwn(GEO_ENABLED_LIBRARIES,item.package),'Installed modules must have explicit Vite lazy import: '+item.package);
   assert.match(item.info,/^https:\/\/www\.npmjs\.com\/package\//);
   assert.match(item.id,/^(?:@[a-z0-9._-]+\/)?[a-z0-9][a-z0-9._-]*$/);
   assert.equal(item.status,'available-to-install');
  }
- assert.deepEqual(Object.keys(GEO_ENABLED_LIBRARIES),[]);
+ assert.deepEqual(Object.keys(GEO_ENABLED_LIBRARIES),['suncalc'],'Only explicitly enabled extensions may be bundled');
+ assert.equal(pkg.dependencies.suncalc,'1.9.0');
  await assert.rejects(loadEnabledGeoLibrary('three'),/not installed/);
  assert.deepEqual(lookupGeoLibrary('h3-js')?.category,'Пространственные индексы');
  assert.equal(filterGeoLibraries('h3-js').length,1);
