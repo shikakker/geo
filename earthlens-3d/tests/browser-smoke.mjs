@@ -209,6 +209,11 @@ for (const {name,width,height,isMobile} of [
     await page.keyboard.press('Enter');
     await page.waitForFunction(()=>document.getElementById('search-results')?.hidden===true,null,{timeout:4000});
     await page.waitForFunction(()=>Math.abs(Number(window.__earthlensDiagnostics?.().zoom)-12)<.7,null,{timeout:10000});
+    await page.waitForTimeout(260);
+    await page.locator('#saved-places-toggle').click();
+    assert.equal(await page.locator('#saved-place-name').inputValue(),'Berlin',
+      'Search destination name should remain available to save after map navigation');
+    await page.locator('.saved-places-header button').click();
         assert.ok(!errors.some(x=>/SyntaxError|does not provide an export|Failed to resolve module specifier/.test(x)),'Progressive weather map must not throw module errors');
     console.log(JSON.stringify({name,pass:true,metrics,weather:true,pageErrors:errors,consoleWarnings:consoleWarnings.slice(0,12),failedResponses:failedResponses.slice(0,12)}));
   } catch(e) {
