@@ -1,4 +1,12 @@
 import * as maplibregl from 'maplibre-gl';
+import {initExploreLayers,updateExploreMap,showExploreAt} from './explore-layers.js';
+import {createMapProgress,watchMapTiles} from './map-progress.js';
+import {preserveEarthLensOverlays} from './style-transition.js';
+import {mountSavedPlaces} from './saved-places-ui.js';
+import {readSetting,writeSetting} from './saved-places.js';
+import {attachPlaceSearch} from './geosearch-ui.js';
+import {mountProductHelp} from './product-help.js';
+import {version as APP_VERSION} from './package.json';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'leaflet/dist/leaflet.css';
@@ -23,7 +31,7 @@ const CESIUM_JS = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VER
 const CESIUM_CSS = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VERSION + '/Build/Cesium/Widgets/widgets.css';
 // Midtown is deliberately the starting point: 3D skyscrapers are unmistakable.
 const defaultView = { center: [-73.9853, 40.7487], zoom: 16.35, pitch: 67, bearing: -24 };
-const app = { map:null, scenes:[], marker:[], terrainAdded:false, is3d:true, activeScene:null, sceneLoading:null, sceneEpoch:0, cesium:null, viewer:null, splatControl:null, splatIds:new Set(), photoRequest:0, geosearchAt:0, tiltInProgress:false, userCamera3d:true, pendingToken:0, fallbackActive:false, fallbackStarting:false, leaflet:null, leafletLib:null, mapReady:false, bootTimer:null, styleIndex:0, tileErrors:0, sceneDataLoaded:false, cityMode:'osm-3d', canvasBuildings:null, globeActive:false, renderedBuildings:0, failedScenes:new Map(), sceneCooldownUntil:0, sceneEntry:null, sceneVisibleTiles:0, lodMode:isLodMode(localStorage.getItem('earthlens:lod'))?localStorage.getItem('earthlens:lod'):'auto', lodTileset:null, lodProgress:{pending:0,processing:0}, lodSource:null, lodDebug:false };
+const app = { map:null, scenes:[], marker:[], terrainAdded:false, is3d:true, activeScene:null, sceneLoading:null, sceneEpoch:0, cesium:null, viewer:null, splatControl:null, splatIds:new Set(), photoRequest:0, geosearchAt:0, tiltInProgress:false, userCamera3d:true, pendingToken:0, fallbackActive:false, fallbackStarting:false, leaflet:null, leafletLib:null, mapReady:false, bootTimer:null, styleIndex:0, tileErrors:0, sceneDataLoaded:false, cityMode:'osm-3d', canvasBuildings:null, globeActive:false, renderedBuildings:0, failedScenes:new Map(), sceneCooldownUntil:0, sceneEntry:null, sceneVisibleTiles:0, lodMode:isLodMode(readSetting('earthlens:lod'))?readSetting('earthlens:lod'):'auto',placesHub:null, lodTileset:null, lodProgress:{pending:0,processing:0}, lodSource:null, lodDebug:false };
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
 const fmt=n=>Number(n).toFixed(4);
 const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -97,11 +105,13 @@ function initOpenBuildings(){
       'fill-extrusion-color':['interpolate',['linear'],height,0,'#b5c5b8',18,'#c5cabe',55,'#d9c7aa',135,'#e7c9a5',280,'#f3dcc2'],
       'fill-extrusion-height':['interpolate',['linear'],['zoom'],13.4,0,14.2,height],
       'fill-extrusion-base':['interpolate',['linear'],['zoom'],13.4,0,14.2,minHeight],
-      'fill-extrusion-opacity':0.94
+      'fill-extrusion-opacity':window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?0.94:0,
+      'fill-extrusion-opacity-transition':{duration:900,delay:0}
     }
   };
   try{
     map.addLayer(extrusions,before);
+    requestAnimationFrame(()=>{if(map.getLayer(id))map.setPaintProperty(id,'fill-extrusion-opacity',0.94)});
     // Hide duplicate 3D building layers only after the new layer succeeds.
     for(const layer of layers)if(layer.type==='fill-extrusion'&&layer['source-layer']==='building'&&layer.id!==id){
       try{map.setLayoutProperty(layer.id,'visibility','none')}catch{}
@@ -136,7 +146,7 @@ function updateBuildingStatistics(){
 function initTerrain(){const m=app.map;if(!m.isStyleLoaded())return;try{if(!m.getSource('earthlens-elevation'))m.addSource('earthlens-elevation',{type:'raster-dem',tiles:[DEM_URL],tileSize:256,maxzoom:14,encoding:'terrarium',attribution:'Elevation © AWS Terrain Tiles / Mapzen'});m.setTerrain({source:'earthlens-elevation',exaggeration:1.15})}catch(err){console.warn('Terrain unavailable in this browser:',err)}}
 function styleLoaded(){initOpenBuildings();initTerrain();updateProjection()}
 function maybeTilt(){if(app.tiltInProgress||!app.userCamera3d||app.activeScene||app.sceneLoading)return;const m=app.map,z=m.getZoom();if(z>=14.4&&m.getPitch()<35){app.tiltInProgress=true;m.easeTo({pitch:60,duration:620});setTimeout(()=>app.tiltInProgress=false,700)}else if(z<11.6&&m.getPitch()>24){app.tiltInProgress=true;m.easeTo({pitch:0,duration:620});setTimeout(()=>app.tiltInProgress=false,700)}}
-function cameraMoved(){showPosition();storeCamera();updateGuidance();updateProjection();updateBuildingStatistics();maybeTilt();if(app.sceneLoading){const nearest=locateNearestScene();if(!nearest||nearest.id!==app.sceneLoading.id){app.sceneEpoch++;app.sceneLoading=null;cleanBanner()}return}const chosen=locateNearestScene();if(chosen)void enterScene(chosen)}
+function cameraMoved(){window.dispatchEvent(new Event('earthlens:camera-moved'));showPosition();storeCamera();updateGuidance();updateProjection();updateBuildingStatistics();maybeTilt();if(app.sceneLoading){const nearest=locateNearestScene();if(!nearest||nearest.id!==app.sceneLoading.id){app.sceneEpoch++;app.sceneLoading=null;cleanBanner()}return}const chosen=locateNearestScene();if(chosen)void enterScene(chosen)}
 function sampleFly(){const scene=app.scenes[0];if(!scene){toast('Геопривязанных Gaussian-сцен пока нет');return}app.sceneCooldownUntil=0;app.failedScenes.delete(scene.id);app.map.flyTo({center:[scene.longitude,scene.latitude],zoom:scene.activationZoom+0.15,pitch:63,bearing:-15,duration:2000});toast('Приблизьте ещё на один шаг: KHR-скан загрузится автоматически')}
 function drawScenePins(){
   for(const marker of app.marker)try{marker.remove()}catch{}
@@ -213,7 +223,7 @@ function hideLodControls(){
 function selectLod(mode){
   if(!isLodMode(mode))return;
   app.lodMode=mode;
-  try{localStorage.setItem('earthlens:lod',mode)}catch{}
+  writeSetting('earthlens:lod',mode)
   const sse=paintLodButtons();
   if(app.lodTileset){
     applyLod(app.lodTileset,mode,deviceForLod());
@@ -387,7 +397,6 @@ function exitScene(){
   }
   updateGuidance();
 }
-async function placeSearch(event){event.preventDefault();const query=$('search-text').value.trim();if(query.length<2)return;if(Date.now()-app.geosearchAt<1200){toast('Немного подождите перед следующим поиском');return}app.geosearchAt=Date.now();const box=$('search-results');box.hidden=false;box.textContent='Поиск места…';try{const params=new URLSearchParams({format:'jsonv2',q:query,limit:'5'});const res=await fetch('https://nominatim.openstreetmap.org/search?'+params,{headers:{Accept:'application/json'}});if(!res.ok)throw Error('Nominatim '+res.status);const data=await res.json();box.textContent='';if(!data.length){box.textContent='Ничего не найдено';return}for(const item of data){const lat=Number(item.lat),lon=Number(item.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const b=document.createElement('button');b.type='button';b.className='search-option';b.textContent=item.display_name;b.addEventListener('click',()=>{if(app.activeScene)exitScene();box.hidden=true;$('search-text').value=item.display_name.split(',')[0];app.map.flyTo({center:[lon,lat],zoom:15.8,pitch:60,bearing:-12,duration:1900})});box.append(b)}}catch(err){console.warn(err);box.textContent='Поиск временно недоступен'}}
 function setTilt(){if(app.fallbackActive){toast('Резервная 2D-карта: для 3D необходим WebGL и векторный источник');return}app.userCamera3d=!app.userCamera3d;$('tilt').classList.toggle('active',app.userCamera3d);app.map.easeTo({pitch:app.userCamera3d?62:0,bearing:app.userCamera3d?-15:0,duration:650})}
 
 function cycleStyle(){
@@ -395,15 +404,24 @@ function cycleStyle(){
  app.styleIndex=(app.styleIndex+1)%BASE_STYLES.length;
  const next=BASE_STYLES[app.styleIndex];
  app.tileErrors=0;
- app.map.setStyle(next.url);
+ app.stream?.start('Переключаем картографический стиль…');
+ // Prefer an incremental style diff; preserve native 3D/imagery/weather layers.
+ app.map.setStyle(next.url,{diff:true,transformStyle:preserveEarthLensOverlays});
  $('layers-label').textContent='OPENFREEMAP · '+next.name.toUpperCase();
  toast('Картографический слой: '+next.name);
+}
+function showMapRecovery(message){
+ $('loading-text').textContent=message;
+ $('loading').classList.remove('hidden');
+ $('map-retry').hidden=false;
 }
 function onMapReady(){
  if(app.mapReady)return;
  app.mapReady=true;clearTimeout(app.bootTimer);
  $('loading').classList.add('hidden');
- styleLoaded();showPosition();updateGuidance();
+ $('map-retry').hidden=true;
+ app.stream?.end();
+ styleLoaded();showPosition();updateGuidance();initExploreLayers({map:app.map,maplibre:maplibregl});
  if(!app.sceneDataLoaded){app.sceneDataLoaded=true;void readScenes()}
 }
 // If the CDN/worker/style/WebGL fails, never leave the viewer behind a blocking loader.
@@ -413,13 +431,14 @@ async function activateRasterFallback(reason){
  app.fallbackStarting=true;
  clearTimeout(app.bootTimer);
  console.warn('MapLibre fallback:',reason);
+ app.stopProgress?.();app.stream?.start('Резервные тайлы OpenStreetMap…');
  $('loading-text').textContent='ВКЛЮЧАЕМ РЕЗЕРВНЫЙ СЛОЙ КАРТЫ';
  const center=app.map?.getCenter?.()||{lat:defaultView.center[1],lng:defaultView.center[0]};
  const zoom=app.map?.getZoom?.()||defaultView.zoom;
  let L;
  try{L=await import('leaflet')}catch(err){
    console.error('Leaflet import failed:',err);
-   $('loading-text').textContent='Карта недоступна. Проверьте Интернет и обновите страницу.';
+   showMapRecovery('Карта недоступна. Проверьте интернет и повторите загрузку.');
    app.fallbackStarting=false;return;
  }
  try{app.map?.remove?.()}catch(err){console.warn('Map cleanup',err)}
@@ -429,13 +448,13 @@ async function activateRasterFallback(reason){
  let tileCount=0,tileErrors=0;
  const tiles=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
-   maxZoom:19,maxNativeZoom:19,crossOrigin:true,updateWhenIdle:true
+   maxZoom:19,maxNativeZoom:19,crossOrigin:true,updateWhenIdle:true,keepBuffer:window.innerWidth<650?2:4
  }).addTo(raster);
- tiles.on('tileload',()=>{tileCount++;if(tileCount>=4)$('loading').classList.add('hidden')});
- tiles.on('load',()=>{if(tileCount>0)$('loading').classList.add('hidden')});
+ tiles.on('tileload',()=>{tileCount++;if(tileCount>=4){$('loading').classList.add('hidden');$('map-retry').hidden=true}});
+ tiles.on('loading',()=>app.stream?.start('Загружаем резервные тайлы…'));
+ tiles.on('load',()=>{if(tileCount>0){$('loading').classList.add('hidden');$('map-retry').hidden=true}app.stream?.end()});
  tiles.on('tileerror',()=>{tileErrors++;if(tileErrors>=6&&tileCount===0){
-   $('loading-text').textContent='Сервер карт недоступен. Попробуйте обновить страницу или другую сеть.';
-   $('loading').classList.remove('hidden');
+   showMapRecovery('Сервер карт недоступен. Повторите попытку или переключитесь на другую сеть.');
  }});
  L.control.zoom({position:'topright'}).addTo(raster);
  app.fallbackActive=true;app.fallbackStarting=false;
@@ -450,7 +469,7 @@ async function activateRasterFallback(reason){
    queryRenderedFeatures:()=>[],
  };
  raster.on('moveend',cameraMoved);
- raster.on('click',e=>showBuilding({lngLat:{lat:e.latlng.lat,lng:e.latlng.lng},point:null}));
+ raster.on('click',e=>showExploreAt(e.latlng.lat,e.latlng.lng,'Точка на карте'));
  $('tilt').textContent='2.5D';
  $('layers-label').textContent='OSM + OPENFREEMAP · 2.5D';
  $('guidance').textContent='Приближайте карту: здания поднимаются объёмными блоками даже без WebGL. Фотографические сканы требуют WebGL.';
@@ -463,6 +482,7 @@ async function activateRasterFallback(reason){
  }catch(error){console.warn('Canvas building extrusion unavailable:',error);}
  showPosition();storeCamera();
  drawScenePins();
+ updateExploreMap({map:app.map,fallback:true,leaflet:raster,L});
  if(!app.sceneDataLoaded){app.sceneDataLoaded=true;void readScenes()}
  // Wait for an actual raster tile before removing the loading screen.
  setTimeout(()=>{if(tileCount===0&&tileErrors===0){
@@ -481,6 +501,32 @@ function supportsWebGL2(){
   }catch(error){console.warn('WebGL2 probe:',error);return false}
 }
 function boot(){
+ app.stream=createMapProgress($('app'));
+ $('map-retry').addEventListener('click',()=>window.location.reload());
+ app.placesHub=mountSavedPlaces({
+  root:$('app'),toolbar:document.querySelector('.corner-toolbar'),
+  getView:()=>{
+   if(!app.map)return null;
+   const center=app.map.getCenter();
+   return {lat:center.lat,lng:center.lng,zoom:app.map.getZoom(),
+    pitch:app.map.getPitch?.()??0,bearing:app.map.getBearing?.()??0};
+  },
+  onNavigate:place=>{
+   if(app.activeScene)exitScene();
+   $('geo-card').hidden=true;
+   const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
+   app.map?.flyTo({center:[place.lng,place.lat],zoom:place.zoom,
+    pitch:app.fallbackActive?0:place.pitch,
+    bearing:app.fallbackActive?0:place.bearing,duration:reduced?0:1200});
+  },
+  notify:toast
+ });
+ app.helpHub=mountProductHelp({
+  root:$('app'),toolbar:document.querySelector('.corner-toolbar'),
+  version:APP_VERSION
+ });
+ const buildVersion=$('build-version');
+ if(buildVersion){buildVersion.textContent='v'+APP_VERSION;buildVersion.title='Версия EarthLens 3D '+APP_VERSION}
  document.querySelectorAll('[data-lod]').forEach(button=>button.addEventListener('click',()=>selectLod(button.dataset.lod)));
  $('lod-debug').addEventListener('click',()=>{if(!app.lodTileset)return;app.lodDebug=!app.lodDebug;app.lodTileset.debugShowBoundingVolume=app.lodDebug;$('lod-debug').setAttribute('aria-pressed',String(app.lodDebug));app.viewer?.scene.requestRender()});
  paintLodButtons();
@@ -502,22 +548,56 @@ function boot(){
      app.map.flyTo({center:[lon,lat],zoom,pitch:66,bearing:-26,duration:2100});
    });
  });
- $('place-search').addEventListener('submit',placeSearch);
- $('search-text').addEventListener('keydown',e=>{if(e.key==='Escape')$('search-results').hidden=true});
+ app.geosearch=attachPlaceSearch({
+  form:$('place-search'),input:$('search-text'),box:$('search-results'),
+  onSelect:place=>{
+   if(app.activeScene)exitScene();
+   $('geo-card').hidden=true;
+   const selectedPlace={title:place.shortName,lat:place.lat,lon:place.lng};
+   const keepSelected=()=>app.placesHub?.select(selectedPlace);
+   // Fly-to dispatches the global moveend event, which clears any previous
+   // selection. Restore the searched place label AFTER the destination lands.
+   if(app.fallbackActive&&app.leaflet?.once)app.leaflet.once('moveend',keepSelected);
+   else if(app.map?.once)app.map.once('moveend',keepSelected);
+   else keepSelected();
+   const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
+   app.map?.flyTo({
+    center:[place.lng,place.lat],zoom:place.zoom,
+    pitch:app.fallbackActive?0:place.zoom>=13?60:25,
+    bearing:app.fallbackActive?0:-12,duration:reduced?0:1400
+   });
+  }
+ });
  $('sample-fly').addEventListener('click',sampleFly);
  $('tilt').addEventListener('click',setTilt);
  $('style-cycle').addEventListener('click',cycleStyle);
  $('reset-view').addEventListener('click',()=>{if(app.fallbackActive)return;app.map.easeTo({bearing:0,duration:500})});
  $('share').addEventListener('click',async()=>{storeCamera();try{await navigator.clipboard.writeText(location.href);toast('Ссылка на ракурс скопирована')}catch{toast('Адрес: '+location.href)}});
  $('exit-splat').addEventListener('click',exitScene);
- document.addEventListener('keydown',event=>{if(event.key==='Escape'&&app.activeScene)exitScene()});
+ document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&app.activeScene)exitScene();
+  if(event.key==='/'&&!event.ctrlKey&&!event.altKey&&!event.metaKey&&!document.getElementById('earthlens-help')?.open){
+   if(event.target?.closest?.('input,textarea,[contenteditable="true"]'))return;
+   event.preventDefault();$('search-text').focus();
+  }
+ });
  window.addEventListener('hashchange',()=>{if(app.activeScene||!app.map)return;app.map.jumpTo(parseHash())});
  // The recovery timer is armed before any external style request is made.
  app.bootTimer=setTimeout(()=>{if(!app.mapReady)void activateRasterFallback('Map style did not become ready within 12 seconds')},12000);
  if(!supportsWebGL2()){void activateRasterFallback('WebGL2 unavailable');return}
  try{
-   const map=new maplibregl.Map({container:'map',style:MAP_STYLE,...parseHash(),maxPitch:85,canvasContextAttributes:{antialias:true,preserveDrawingBuffer:false},attributionControl:false,hash:false});
+   // Cap framebuffer resolution on high-DPR/mobile graphics hardware while retaining
+   // recently viewed tiles. This avoids unnecessary full redraws during navigation.
+   const compact=window.matchMedia('(max-width: 700px)').matches||(navigator.deviceMemory||8)<=4;
+   const pixelRatio=Math.max(1,Math.min(compact?1.6:2,window.devicePixelRatio||1));
+   const map=new maplibregl.Map({
+    container:'map',style:MAP_STYLE,...parseHash(),maxPitch:85,
+    pixelRatio,maxTileCacheZoomLevels:compact?3:7,fadeDuration:compact?460:720,
+    canvasContextAttributes:{antialias:!compact,preserveDrawingBuffer:false},
+    attributionControl:false,hash:false
+   });
    app.map=map;
+   app.stopProgress=watchMapTiles(map,app.stream);
    map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
    if(typeof maplibregl.GlobeControl==='function')map.addControl(new maplibregl.GlobeControl(),'top-right');
    map.addControl(new maplibregl.ScaleControl({unit:'metric'}),'bottom-left');
@@ -527,7 +607,7 @@ function boot(){
    map.on('style.load',()=>{if(!app.fallbackActive)styleLoaded()});
    map.on('move',showPosition);
    map.on('moveend',cameraMoved);
-   map.on('click',showBuilding);
+   map.on('click',e=>{const p=e.lngLat;let f;try{f=map.queryRenderedFeatures(e.point,{layers:['earthlens-3d-buildings']})[0]}catch{}showExploreAt(p.lat,p.lng,f?.properties?.name||'Точка на карте',f?.properties||{})});
    map.on('error',e=>{
      const msg=e.error?.message||String(e.error||'unknown');
      console.warn('Map data source:',msg);
@@ -539,5 +619,5 @@ function boot(){
  }catch(err){console.error('MapLibre init:',err);void activateRasterFallback(err.message||'WebGL map initialization failed')}
 }
 // Inspectable, read-only diagnostics used by real Chromium rendering tests.
-window.__earthlensDiagnostics=()=>({engine:app.fallbackActive?'canvas-2.5d':app.mapReady?'webgl-3d':'initializing',buildings:app.renderedBuildings,zoom:app.map?.getZoom?.()??null,sceneCount:app.scenes.length,activeScene:app.activeScene?.id||null,sceneVisibleTiles:app.sceneVisibleTiles,lodMode:app.lodMode,lodSSE:app.lodTileset?.maximumScreenSpaceError??null,lonTokenConfigured:ION_PUBLIC_TOKEN.length>0,globe:app.globeActive});
+window.__earthlensDiagnostics=()=>({engine:app.fallbackActive?'canvas-2.5d':app.mapReady?'webgl-3d':'initializing',buildings:app.renderedBuildings,zoom:app.map?.getZoom?.()??null,sceneCount:app.scenes.length,activeScene:app.activeScene?.id||null,sceneVisibleTiles:app.sceneVisibleTiles,lodMode:app.lodMode,lodSSE:app.lodTileset?.maximumScreenSpaceError??null,lonTokenConfigured:ION_PUBLIC_TOKEN.length>0,globe:app.globeActive,weatherWindLayer:Boolean(app.map?.getLayer?.('earthlens-weather-wind-vectors')),version:APP_VERSION,savedPlaces:app.placesHub?.store.count??0});
 try{boot()}catch(err){console.error(err);void activateRasterFallback(err.message||'Unexpected map bootstrap failure')}

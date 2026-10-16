@@ -142,3 +142,133 @@ The Cesium guide showcases ~110 million splats across 3.7 km² and a camera at l
 **Without the token**, existing open **Utrecht KHR Gaussian Splat** and **Tokyo PLATEAU 3D Tiles** still work and now use the same LOD controls. CESIUM_WORLD_TERRAIN is opt-in through \`VITE_CESIUM_WORLD_TERRAIN=true\` and requires authorized Cesium ion access; default uses open-map imagery and ellipsoid terrain within the Cesium detail view.
 
 Reference on SSE: https://cesium.com/learn/cesiumjs/ref-doc/Cesium3DTileset.html
+
+## October 16: Explore layers (feature branch)
+
+- New compact, collapsible world layer panel; addresses, OSM geolocated trees/green areas, bus stops, road signals, mapped buildings and Finnish Digitraffic road weather cameras. Objects are requested at zoom 13+ around the viewport with capped result counts. OpenStreetMap coverage is uneven; trees are mapped points, **not** fictional globally continuous photorealistic trees.
+- Optional Esri World Imagery imagery tiles under required attribution. Service terms and capacity restrictions apply; not a self-hosted open-source unlimited satellite tile service.
+- Click a feature or map location to open a bottom photo gallery. Wikimedia Commons, Wikipedia, Panoramax, iNaturalist, KartaView and Openverse are keyless integrations (individual public endpoints may reject CORS, throttle, lack imagery, or change schemas). Optional API-key integrations: Mapillary, Flickr and Unsplash. OSM-linked feature photos count as tenth source adapter. Photo provenance and distance labeling avoid claiming a nearby photo depicts the selected property.
+- Property search buttons lead to Airbnb, Booking.com, Google Travel and Yandex Realty search pages, **not listing feed integration**. No unauthorized scraping or fabricated inventory.
+- Supplemental geospatial candidate library list in explore-layers.js is **not installed as ten extra npm dependencies**; adopt individually when required for performance and data processing.
+- Finland camera photos are still images updated periodically (about 10 minutes), not a live video stream. Other countries need their own authorized camera feeds.
+- API quotas, attribution, availability and licences remain provider-specific. Overpass servers are shared community services and must not be used as production unlimited infrastructure: production should adopt cached/self-hosted extracts and a licensed traffic provider.
+
+
+## October 16: progressive rendering, weather and 10 OSS addons
+
+Version 0.4.0: Objects load and appear progressively without a full marker teardown. Existing MapLibre markers persist across Overpass queries by stable identity; newly loaded icons rise/fade in, old icons fade out. Buildings fade in, OSM tree 3D canopies rise progressively and satellite imagery crossfades. Photo gallery thumbnails enter smoothly. Reduced-motion settings are respected.
+
+The geographic overlay waits 850 ms after a map move, cancels stale requests, reuses data with a bounded 4-minute OSM cache, and limits visible markers on phones. The map remains usable during network failures. Shared Overpass endpoints may throttle or fail and must be replaced by hosted regional extracts for substantial production traffic.
+
+Enable **Погода** in the layer panel: Open-Meteo model weather (temperature, feels-like, precipitation, cloud cover, wind, pressure, humidity) appears as georeferenced markers. Click one for details. Data is batched (up to five coordinates), cached for 15 minutes, and failures are shown instead of inventing weather. Source attribution appears in the weather card.
+
+Ten extra permissively licensed npm dependencies are **installed on demand through Vite lazy imports**, never loaded all on initial view:
+
+| Package | License | Role |
+| --- | --- | --- |
+| supercluster | ISC | Feature clustering |
+| rbush | MIT | Spatial indexing |
+| @turf/distance | MIT | Spherical distances |
+| @turf/bbox | MIT | Bounding boxes |
+| @turf/boolean-point-in-polygon | MIT | Containment queries |
+| d3-ease | BSD-3-Clause | Easing |
+| d3-interpolate | ISC | Value transitions |
+| d3-array | ISC | Numeric/geodata aggregation |
+| d3-scale | ISC | Weather temperature colors (active when weather enabled) |
+| proj4 | MIT | Coordinate projections |
+
+The add-ons have no provider usage quotas when self-hosted. **That does not make Open-Meteo or imagery services unlimited.** Open-Meteo's free tier is non-commercial only, with <10,000 requests/day and additional hourly/minute limits: https://open-meteo.com/en/terms . Production and commercial operation require licensed service arrangements.
+
+GitHub Actions checks syntax, Node regression tests, Vite build and desktop/mobile Chromium smoke. Draft PR code is not a verified production deployment.
+
+
+## v0.6 · Smooth loading / third OSS expansion (October 2026)
+
+This iteration **adds ten new npm GIS packages, for 30 addon modules total**, beyond the four base renderer dependencies. The packages are individually lazy-imported; importing the registry alone does not download all optional chunks.
+
+| Additional package | Pinned version | License | Intended capability |
+|---|---|---|---|
+| geojson-vt | 5.0.2 | ISC | Local vector tile indexing |
+| vt-pbf | 3.1.3 | MIT | Binary vector tiles |
+| martinez-polygon-clipping | 0.8.1 | MIT | Polygon intersections |
+| earcut | 3.2.4 | ISC | Fast 3D polygon triangulation |
+| geobuf | 3.0.2 | ISC | Compact GeoJSON serialization |
+| @turf/destination | 7.4.0 | MIT | **Active:** weather wind geodesic arrow endpoints |
+| @turf/nearest-point | 7.4.0 | MIT | **Active:** nearest real mapped POI on map click |
+| @turf/length | 7.4.0 | MIT | Distance along roads and routes |
+| @turf/boolean-intersects | 7.4.0 | MIT | Geographic object intersection |
+| @turf/buffer | 7.4.0 | MIT | Nearby radius polygons |
+
+**Smoothness improvements.** MapLibre now caps pixel density at 1.6x on mobile/low-memory devices and 2x on desktop. MapLibre's per-source tile-cache zoom levels are 3 (small devices) or 7 (desktop); Leaflet fallback uses a sized tile buffer. Adaptive frame-budgeted marker rendering defaults to **Плавно**, limiting immediate objects and 3D tree canopies. Users can choose **Подробно** for more objects. Scene pins, weather compass arrows, satellite opacity and marker arrivals have transitions, with reduced-motion OS settings honored. Previously visible objects remain in place during asynchronous refresh.
+
+**Weather:** once the user enables weather, wind speed and *meteorological FROM bearing* are read from the real Open-Meteo response. Turf Destination generates map lines in the direction wind **blows toward**; line length is illustrative and must not be interpreted as real air-parcel displacement. A matching rotatable compass arrow appears beside temperature. Time steps 0/+3/+6/+12h reuse existing 15-minute response cache. Existing Open-Meteo source attribution and terms remain.
+
+**Geotagged interaction:** clicking an unlabelled map point searches loaded OpenStreetMap POIs within a small radius using Turf Nearest Point; a photo gallery continues to distinguish nearby photos from confirmed property photos. This does not invent building or address data.
+
+**Boundaries:** Only the two referenced Turf modules are actively called in v0.6. The other eight packages are installed and exposed via on-demand import but have **no new UI feature yet**. The 30-pack refers to distinct addon modules, not 30 independent data services or APIs. Hosted Overpass, weather, satellite and camera APIs may have quotas, CORS limitations and license conditions; self-hosted library source code carries no hosted per-request quotas. The live site may still serve an earlier commit until Vercel accepts an exact-head deployment, and external Cesium demo assets remain best-effort.
+
+## EarthLens v0.7 — 100 more GIS extension candidates and smooth 3D streaming
+
+EarthLens retains its 30 installed GIS packages and adds **100 further, distinct, npm-verified packages in a searchable extension catalog** (`geo-library-catalog.js`). **The 100 extensions are not all installed or loaded**: doing so would delay map startup and add unneeded heavyweight engines. They are opt-in; every selected package is individually version-pinned and included as a lazy Vite chunk.
+
+Quick start from `earthlens-3d/`:
+
+```bash
+npm run geo:catalog
+npm run geo:add -- h3-js
+npm run geo:add -- d3-timer
+npm run check
+npm run build
+```
+
+The installer checks a 100-name allowlist, retrieves npm metadata, verifies a recognized free software license or a separately reviewed upstream source, installs an exact version with npm scripts disabled, and emits a static Vite lazy import. Ambiguous licenses are rejected; at most eight packages can be requested per invocation. Do not enable all 100 at once.
+
+**SunCalc 1.9.0 is actually installed and lazily loaded** for local, no-API sun altitude/azimuth in selected weather cards. The other 99 are available to install on demand. The sidebar catalog filters 100 packages over nine groups and offers a copyable install command, showing at most 20 matches per page. Groups: weather/time 8; 3D 8; geodata 13; spatial 10; D3 16; offline/cache 14; math 8; search 6; Turf 17.
+
+### Progressive loading
+
+- Existing map marker DOM nodes are reused; new ones appear in frame-budgeted, cancelable batches.
+- **3D tree canopies double-buffer:** keep the previous GeoJSON geometry on screen, load new trees into a separate source, then fade the two extrusion layers smoothly. This avoids abruptly replacing entire tree groups.
+- Basemap style updates preserve compatible EarthLens 3D, wind and imagery layers; satellite imagery remains behind 3D geometry.
+- Photo thumbnail placeholders fade in on image decode; mobile devices receive smaller marker and tree budgets.
+- `prefers-reduced-motion` is respected. A temporary provider outage does not erase the base map.
+
+**An open-source module does not provide unlimited public API calls.** Self-hosted library code has no per-request billing, but remote Overpass, Open-Meteo, imagery and camera providers impose their own licenses, quotas and uptime constraints. Open-Meteo's no-key access is noncommercial and quota-limited.
+
+Catalog availability and licenses are audited independently against npm metadata in GitHub Actions. Map correctness is checked with Node tests, Vite production builds and desktop/mobile Chromium.
+
+## EarthLens v0.8 — automatic quality and shared network requests
+
+**Auto rendering** is the new default overlay-quality preference. It chooses a low-cost profile on narrow screens, 4 GB-or-less memory devices, slow network connections and when Reduced Motion is enabled. On capable desktops it can show more detail. While the camera is moving, an opt-in, bounded frame sampler observes rendering FPS and applies a hysteresis threshold to change detail gradually; it stops completely on moveend/scene removal. It never overrides a manual `Плавно` or `Подробно` selection. An inline status shows the current effective setting.
+
+**Request coalescing** prevents concurrent identical viewport requests from reaching Open-Meteo or the same-origin Overpass proxy multiple times. Callers that move to another location can abort their own wait without aborting a weather transport shared by another caller. Shared transports have their own timeout. Cached hourly weather stays valid for 15 minutes; server OSM responses keep CDN and in-process caching plus a 1-hour fallback to previously fetched features when external Overpass is down.
+
+**Data provenance in the UI** distinguishes fresh geodata from a stale or unreachable provider. Existing 3D buildings and markers remain usable when upstream queries fail. The browser smoke verifies that an intentionally stale OSM payload still draws buildings, trees and addresses and shows the source warning.
+
+No additional API keys or subscriptions are introduced. Upstream Open-Meteo, Overpass, image providers and third-party scene hosts retain their independent quotas and terms.
+
+## v0.9 — smooth 3D source-ready transitions and second 100-library collection
+
+EarthLens now has **200 separately curated optional npm libraries**: the original 100 (`geo-library-catalog.js`) plus **another distinct 100** in `geo-library-catalog-extra.js` (Turf, D3, deck.gl, loaders.gl and Leaflet utilities). All 200 are names in the optional library catalog, NOT code loaded on map startup. The previously installed 30 GIS packages and one lazily activated SunCalc module are retained. GitHub Actions checks registry availability and permissible licenses for all 200 names, and new tests prevent any duplication against the first catalog or installed GIS core.
+
+From `earthlens-3d/`, find a package in the map sidebar or use:
+
+```bash
+npm run geo:catalog
+npm run geo:add -- leaflet-control-geocoder
+npm run geo:add -- @turf/transform-rotate
+npm run check
+npm run build
+```
+
+The installation helper verifies the package against the combined allowlist, checks current npm metadata/license, pins an exact version with lifecycle scripts disabled and writes a static on-demand Vite import. The map never installs npm packages at runtime. Heavy 3D/deck.gl engines are **not enabled by default** because they would increase JS download and WebGL contention.
+
+### What was optimized
+
+- Merge multiple same-frame overlay updates into one animation frame instead of repeatedly canceling marker batches.
+- Fade-out markers can be revived with their original DOM element if users switch a layer back on or reverse a short pan before the removal timer finishes.
+- Reuse a stable candidate array during map pans and zoom changes in the same visibility band. This keeps the KDBush spatial index cached in its WeakMap, rather than rebuilding it every time.
+- For OSM 3D tree extrusions, preserve the old geometry while the new GeoJSON source is being parsed. Start the elevation/opacity crossfade **after** MapLibre reports the new source as loaded. If the source fails, keep existing geometry visible. Reduced-motion preferences remain respected.
+- Existing visual regression checks cover the desktop and mobile map, weather, geodata warnings, optional module search, and rapid marker re-entry. The initial JS performance budget continues to prohibit eager imports of all optional libraries.
+
+**Open-source software is not an unlimited external data feed.** Public OSM Overpass, imagery, traffic cameras, Open-Meteo, travel and photo providers have their own licenses and quotas. These 100 catalog entries do not imply 100 free real-time map data services.
