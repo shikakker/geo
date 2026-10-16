@@ -111,8 +111,8 @@ for (const {name,width,height,isMobile} of [
     assert.equal(await page.locator('#earthlens-stream-status').count(),1,'Map tile progress indicator must exist');
     await page.locator('[data-weather-hour="3"]').click();
     await page.waitForFunction(()=>[...document.querySelectorAll('.explore-weather')].some(el=>el.textContent.includes('22°')),null,{timeout:17000});
-    await marker.click();
-    assert.match(await detail.innerText(),/21.6/,'Forecast +3h must use hourly provider data');
+    await page.waitForFunction(()=>document.querySelector('#explore-detail')?.innerText.includes('21.6'),null,{timeout:7000});
+    assert.match(await detail.innerText(),/21.6/,'Forecast +3h must update the OPEN card without an overlapping second click');
     assert.match(await detail.innerText(),/прогноз \+3 ч/,'Forecast card must label prediction horizon');
     await page.locator('#explore-detail .explore-detail-head button').click();
     await page.locator('[data-render-quality="detail"]').click();
