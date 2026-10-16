@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Catalog audit (optional network check). npm registry is only queried by
 // maintainer/CI, never by visitors opening the map.
-import {GEO_LIBRARY_CATALOG} from '../geo-library-catalog.js';
+import {GEO_LIBRARY_CATALOG} from '../geo-library-combined.js';
 const allowed=/\b(MIT|ISC|Apache-2\.0|BSD-2-Clause|BSD-3-Clause|0BSD|CC0-1\.0|Unlicense|BlueOak-1\.0\.0|BSD)\b/i;
 async function verify(item){
  const endpoint='https://registry.npmjs.org/'+encodeURIComponent(item.package)+'/latest';
@@ -26,7 +26,7 @@ const results=[];
 async function worker(){
  while(index<items.length){const current=items[index++];results.push(await verify(current))}
 }
-await Promise.all(Array.from({length:5},()=>worker()));
+await Promise.all(Array.from({length:10},()=>worker()));
 results.sort((a,b)=>a.name.localeCompare(b.name));
 const invalid=results.filter(item=>item.status!=='verified');
 const summary={total:results.length,verified:results.length-invalid.length,missing:invalid.filter(x=>x.status.startsWith('http-')).length,review:invalid};
