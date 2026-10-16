@@ -7,7 +7,7 @@ async function verify(item){
  const endpoint='https://registry.npmjs.org/'+encodeURIComponent(item.package)+'/latest';
  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),9500);
  try{
-  const response=await fetch(endpoint,{signal:controller.signal,headers:{Accept:'application/vnd.npm.install-v1+json'}});
+  const response=await fetch(endpoint,{signal:controller.signal,headers:{Accept:'application/json'}});
   if(!response.ok)return {name:item.package,status:'http-'+response.status};
   const info=await response.json();
   const license=typeof info.license==='string'?info.license:'unknown';
