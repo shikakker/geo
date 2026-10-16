@@ -44,6 +44,11 @@ for (const {name,width,height,isMobile} of [
       {type:'node',id:90002,lat:40.74866,lon:-73.98525,tags:{natural:'tree',height:'9',name:'Example tree'}}
     ]})});
   });
+  await page.route(url=>url.hostname==='nominatim.openstreetmap.org'&&url.pathname==='/search',async route=>{
+    await route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},
+      body:JSON.stringify([{place_id:555,lat:'52.52',lon:'13.405',
+        display_name:'Berlin, Deutschland',boundingbox:['52.45','52.59','13.3','13.5']}])});
+  });
   const errors = [];
   const failedResponses = [];
   const consoleWarnings=[];
@@ -91,6 +96,18 @@ for (const {name,width,height,isMobile} of [
     assert.ok(metrics.searchButtonRight<=width+1,'Search submit button must fit inside viewport');
     assert.ok(!errors.some(x=>/does not provide an export named 'default'|Failed to resolve module specifier|SyntaxError/i.test(x)),
       'MapLibre import failed: '+errors.join(' | '));
+    const favorites=page.locator('#saved-places-toggle');
+    await favorites.click();
+    await page.locator('#saved-place-name').fill('Мой 3D-ракурс');
+    await page.locator('.saved-places-form button[type=submit]').click();
+    await page.locator('.saved-place-open').first().waitFor({state:'visible',timeout:4000});
+    assert.match(await page.locator('.saved-place-open').first().innerText(),/Мой 3D-ракурс/);
+    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('earthlens:saved-places:v1')||'[]').length),1,
+      'Bookmarks must be local-only and survive a page reload');
+    await page.locator('.saved-place-remove').first().click();
+    assert.equal(await page.locator('.saved-place-open').count(),0);
+    await page.locator('.saved-places-header button').click();
+    assert.equal(await page.locator('#saved-places-panel').getAttribute('hidden'),'');
     await page.locator('.explore-addresses').first().waitFor({state:'visible',timeout:16000});
     await page.locator('.explore-trees').first().waitFor({state:'visible',timeout:16000});
     // POI tiles must not blink after a quick layer toggle: the same DOM icon
@@ -151,7 +168,16 @@ for (const {name,width,height,isMobile} of [
       'Automatic quality control must remain accessible');
     assert.match(await page.locator('#explore-quality-status').innerText(),/Авто/,'Show effective automatic quality');
     await page.screenshot({path:'screenshots/earthlens-'+name+'-weather.png',animations:'disabled'});
-    assert.ok(!errors.some(x=>/SyntaxError|does not provide an export|Failed to resolve module specifier/.test(x)),'Progressive weather map must not throw module errors');
+    await page.locator('#search-text').fill('Berlin');
+    await page.locator('#place-search button[type=submit]').click();
+    await page.locator('.search-option').first().waitFor({state:'visible',timeout:6000});
+    await page.locator('#search-text').press('ArrowDown');
+    assert.equal(await page.evaluate(()=>document.activeElement?.classList.contains('search-option')),true,
+      'ArrowDown moves focus into geocoder results');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(()=>document.getElementById('search-results')?.hidden===true,null,{timeout:4000});
+    await page.waitForFunction(()=>Math.abs(Number(window.__earthlensDiagnostics?.().zoom)-12)<.7,null,{timeout:10000});
+        assert.ok(!errors.some(x=>/SyntaxError|does not provide an export|Failed to resolve module specifier/.test(x)),'Progressive weather map must not throw module errors');
     console.log(JSON.stringify({name,pass:true,metrics,weather:true,pageErrors:errors,consoleWarnings:consoleWarnings.slice(0,12),failedResponses:failedResponses.slice(0,12)}));
   } catch(e) {
     failed=true;
