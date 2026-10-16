@@ -1,6 +1,7 @@
 import * as maplibregl from 'maplibre-gl';
 import {initExploreLayers,updateExploreMap,showExploreAt} from './explore-layers.js';
 import {createMapProgress,watchMapTiles} from './map-progress.js';
+import {preserveEarthLensOverlays} from './style-transition.js';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'leaflet/dist/leaflet.css';
@@ -400,7 +401,8 @@ function cycleStyle(){
  const next=BASE_STYLES[app.styleIndex];
  app.tileErrors=0;
  app.stream?.start('Переключаем картографический стиль…');
- app.map.setStyle(next.url);
+ // Prefer an incremental style diff; preserve native 3D/imagery/weather layers.
+ app.map.setStyle(next.url,{diff:true,transformStyle:preserveEarthLensOverlays});
  $('layers-label').textContent='OPENFREEMAP · '+next.name.toUpperCase();
  toast('Картографический слой: '+next.name);
 }
