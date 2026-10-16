@@ -56,3 +56,38 @@
 .lod-metric{font-size:10px;font-variant-numeric:tabular-nums;color:#f0f9ef;white-space:nowrap;margin-left:3px}
 .lod-state{font-size:9px;color:#9fc6aa;max-width:100%;line-height:1.3}
 @media(max-width:560px){.splat-banner{align-items:flex-start;gap:7px;padding:10px}.splat-pulse{font-size:21px}.splat-banner button#exit-splat{padding:7px;font-size:9px}.lod-controls{gap:4px}.lod-title{font-size:8px}.lod-button{padding:5px;font-size:8px}.lod-state{flex-basis:100%}}
+
+/* Compact layer explorer with a place-photo bottom sheet */
+.explore-panel{position:absolute;z-index:12;top:103px;left:20px;width:232px;padding:13px;border-radius:12px;max-height:calc(100vh - 205px);overflow:auto}
+.explore-header{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;letter-spacing:.1em;color:#c5efd1}
+.explore-header button{font-size:17px;background:transparent;color:#d8f5dd;border:0;padding:0 5px}
+.explore-layer-list{display:grid;grid-template-columns:1fr;gap:5px;margin-top:12px}
+.explore-layer-list button,.explore-switch-row button{border:1px solid #4c6652;background:#20392b;color:#bed4c4;border-radius:7px;text-align:left;padding:8px 10px;font-size:11px;display:flex;align-items:center;gap:9px}
+.explore-layer-list button span{font-size:15px;width:19px;text-align:center}
+.explore-layer-list button.on,.explore-layer-list button[aria-pressed=true],.explore-switch-row button[aria-pressed=true]{background:#bdddc2;color:#153021;border-color:#dcf6e3}
+.explore-switch-row{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:10px}
+.explore-switch-row button{white-space:nowrap;font-weight:750}
+#explore-count{font-size:9px;color:#b5cab9;text-align:right}
+.explore-licence{font-size:9px;line-height:1.45;color:#91b19c;margin:10px 0 0}
+.explore-panel.collapsed{width:auto;max-height:unset}
+.explore-panel.collapsed .explore-layer-list,.explore-panel.collapsed .explore-switch-row,.explore-panel.collapsed .explore-licence{display:none}
+.explore-marker{width:27px;height:27px;border:1px solid #e6fff0;border-radius:50%;background:#17372d;color:#ddf9e9;box-shadow:0 1px 8px #000a;display:grid;place-items:center;font-size:14px;font-weight:850;cursor:pointer}
+.explore-trees{background:#276847}.explore-cameras{background:#215c87}.explore-transport{background:#8b6029}.explore-traffic{background:#a64535}.explore-realty{background:#67539a}
+.explore-leaflet{background:transparent;border:0}
+.explore-detail{position:absolute;z-index:17;bottom:70px;left:50%;transform:translateX(-50%);width:min(780px,calc(100vw - 32px));max-height:48vh;overflow:auto;padding:13px 15px;border-radius:12px}
+.explore-detail[hidden]{display:none!important}
+.explore-detail-head{display:flex;justify-content:space-between;gap:12px;align-items:center}
+.explore-detail-head strong{font-size:14px}.explore-detail-head button{background:transparent;color:#fff;border:0;font-size:24px}
+.explore-sub{font-size:10px;color:#c8dfcd;margin:8px 0}
+.explore-photo-title{font-size:11px;font-weight:800;margin-top:12px}
+.explore-gallery{display:flex;gap:9px;overflow:auto;padding-top:9px;min-height:88px}
+.explore-gallery a{flex:none;width:112px;text-decoration:none;border-radius:7px;overflow:hidden;background:#274134;color:#d8f4de;font-size:9px}
+.explore-gallery img{width:112px;height:86px;object-fit:cover;display:block}
+.explore-gallery span{display:block;padding:5px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.explore-camera-image{max-width:100%;max-height:250px;object-fit:contain;border-radius:8px;margin-top:10px}
+.explore-link-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.explore-link-row a{padding:7px 9px;border:1px solid #688b70;border-radius:7px;color:#d1f9db;font-size:10px;text-decoration:none}
+@media(min-width:851px){.app:not(.focus-dismissed) .explore-panel{top:300px;max-height:calc(100vh - 400px)}}
+@media(max-width:850px){.explore-panel{left:9px;top:77px;width:174px;padding:9px;max-height:calc(100vh - 180px)}.explore-layer-list button{font-size:10px;padding:7px}.explore-detail{bottom:57px;max-height:53vh}.focus-card:not([hidden]){pointer-events:none}.explore-panel:not(.collapsed){top:235px;max-height:calc(100vh - 350px)}}
+@media(max-width:540px){.explore-panel{width:160px}.explore-panel:not(.collapsed){top:215px;max-height:calc(100vh - 310px)}.explore-gallery a,.explore-gallery img{width:96px}.explore-gallery img{height:77px}}
+.app.in-splat .explore-panel,.app.in-splat .explore-detail{display:none}
