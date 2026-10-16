@@ -144,6 +144,21 @@ function markerContent(kind){
  const defs={addresses:'⌂',trees:'♣',cameras:'▣',transport:'▰',traffic:'●',realty:'▤',weather:'☀'};
  return defs[kind]||'•';
 }
+function paintWeatherMarker(root,props){
+ if(!root)return;
+ let value=root.querySelector('.explore-wx-value');
+ if(!value){root.textContent='';value=document.createElement('span');value.className='explore-wx-value';root.append(value)}
+ value.textContent=props.symbol+' '+Math.round(props.temperature)+'°';
+ let arrow=root.querySelector('.explore-wx-arrow');
+ const dir=props.windDirection;
+ if(dir===null||dir===undefined||!Number.isFinite(Number(dir))){
+  arrow?.remove();
+ }else{
+  if(!arrow){arrow=document.createElement('span');arrow.className='explore-wx-arrow';arrow.textContent='↑';arrow.setAttribute('aria-hidden','true');root.append(arrow)}
+  arrow.style.transform='rotate('+((Number(dir)+180)%360)+'deg)';
+ }
+ root.style.backgroundColor=props._color||'#35647c';
+}
 function clearMarkers(){
  state.frameQueue.cancel();
  for(const entry of state.markerIndex.values())try{entry.marker.remove()}catch{}
@@ -192,8 +207,7 @@ function draw(){
   if(entry){
    entry.feature=f;
    if(kind==='weather'){
-    entry.inner.textContent=f.properties.symbol+' '+Math.round(f.properties.temperature)+'°';
-    entry.inner.style.backgroundColor=f.properties._color||'#35647c';
+    paintWeatherMarker(entry.inner,f.properties);
     try{if(state.fallback)entry.marker.setLatLng([pos[1],pos[0]]);else entry.marker.setLngLat(pos)}catch{}
    }
    return;
@@ -217,6 +231,7 @@ function draw(){
    if(kind==='weather')entry.inner.style.backgroundColor=f.properties._color||'#35647c';
   }else if(state.maplibre)entry.marker=new state.maplibre.Marker({element:shell,anchor:'center'}).setLngLat(pos).addTo(state.map);
   else return;
+  if(kind==='weather')paintWeatherMarker(entry.inner,f.properties);
   state.markerIndex.set(key,entry);
  },()=>{
   for(const [key,entry] of state.markerIndex){
