@@ -158,16 +158,6 @@ function toFeature(item){
  if(!kind)return null;
  return {type:'Feature',id:item.type+'/'+item.id,geometry:{type:'Point',coordinates:[lon,lat]},properties:{...tags,_kind:kind,name:tags.name||tags['addr:street']||({'trees':'Дерево / зелёная зона','transport':'Остановка','traffic':'Светофор','addresses':'Адрес','realty':'Здание'}[kind])}};
 }
-function dynamicRadius(zoom){return zoom>=17?380:zoom>=15?700:1400}
-function overpassQuery(lat,lon,zoom){
- const r=dynamicRadius(zoom),filters=[];
- if(state.active.has('addresses'))filters.push('nwr["addr:housenumber"](around:'+r+','+lat+','+lon+');');
- if(state.active.has('trees'))filters.push('nwr["natural"~"^(tree|tree_row|wood)$"](around:'+r+','+lat+','+lon+');','nwr["leisure"="park"](around:'+r+','+lat+','+lon+');');
- if(state.active.has('transport'))filters.push('nwr["highway"="bus_stop"](around:'+r+','+lat+','+lon+');','nwr["public_transport"="platform"](around:'+r+','+lat+','+lon+');');
- if(state.active.has('traffic'))filters.push('node["highway"="traffic_signals"](around:'+r+','+lat+','+lon+');');
- if(state.active.has('realty'))filters.push('nwr["building"](around:'+Math.min(r,500)+','+lat+','+lon+');');
- return filters.length?'[out:json][timeout:18];('+filters.join('')+');out center 1500;':'';
-}
 async function cameras(){
  if(!state.active.has('cameras'))return [];
  if(cache.has('fi-cameras')&&Date.now()-cache.get('fi-cameras').at<2*60*60*1000)return cache.get('fi-cameras').data;
@@ -357,15 +347,14 @@ async function load(){
  draw();
  el('explore-count').textContent='Обновляем слои…';
  const hasOSM=zoom>=13&&[...state.active].some(x=>['addresses','trees','transport','traffic','realty'].includes(x));
- const query=hasOSM?overpassQuery(Number(center.lat.toFixed(4)),Number(center.lng.toFixed(4)),zoom):'';
  const osmKey=tileKey(center,zoom,state.active);
  const osmTask=(async()=>{
-  if(!query)return {features:[],stale:false};
+  if(!hasOSM)return {features:[],stale:false};
   const cached=state.osmCache.get(osmKey);
   if(cached)return cached;
   const queryParams=new URLSearchParams({
    lat:Number(center.lat).toFixed(3),lon:Number(center.lng).toFixed(3),
-   zoom:Number(zoom).toFixed(1),
+   zoom:Number(zoom).toFixed(3),
    layers:[...state.active].filter(x=>['addresses','trees','transport','traffic','realty'].includes(x)).sort().join(',')
   });
   const response=await fetch('/api/osm?'+queryParams,{
