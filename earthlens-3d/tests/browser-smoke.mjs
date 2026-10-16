@@ -16,6 +16,17 @@ for (const {name,width,height,isMobile} of [
 ]) {
   const context = await browser.newContext({viewport:{width,height},isMobile,hasTouch:isMobile,deviceScaleFactor:1});
   const page = await context.newPage();
+  // Deterministic weather API fixture verifies actual overlay behavior without
+  // consuming the public Open-Meteo quota in CI.
+  await page.route(url=>url.hostname==='api.open-meteo.com'&&url.pathname==='/v1/forecast',async route=>{
+    const url=new URL(route.request().url());
+    const points=(url.searchParams.get('latitude')||'').split(',').map(Number);
+    const record=()=>({current:{temperature_2m:17.4,weather_code:2,apparent_temperature:16.2,
+      wind_speed_10m:13.2,cloud_cover:45,precipitation:0,relative_humidity_2m:63,pressure_msl:1015}});
+    await route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},
+      body:JSON.stringify(points.length>1?points.map(record):record())});
+  });
+
   const errors = [];
   const failedResponses = [];
   const consoleWarnings=[];
@@ -64,7 +75,19 @@ for (const {name,width,height,isMobile} of [
     assert.ok(!errors.some(x=>/does not provide an export named 'default'|Failed to resolve module specifier|SyntaxError/i.test(x)),
       'MapLibre import failed: '+errors.join(' | '));
     await page.screenshot({path:'screenshots/earthlens-'+name+'.png',animations:'disabled'});
-    console.log(JSON.stringify({name,pass:true,metrics,pageErrors:errors,consoleWarnings:consoleWarnings.slice(0,12),failedResponses:failedResponses.slice(0,12)}));
+    // Weather must render without waiting for a slow/failed Overpass request.
+    await page.locator('[data-explore-layer="weather"]').click();
+    const marker=page.locator('.explore-weather').first();
+    await marker.waitFor({state:'visible',timeout:17000});
+    assert.match(await marker.innerText(),/17°/,'Weather icon must contain provider data');
+    await marker.click();
+    const detail=page.locator('#explore-detail');
+    await detail.locator('.explore-weather-cell').first().waitFor({timeout:6000});
+    assert.match(await detail.innerText(),/Open-Meteo/);
+    assert.match(await detail.innerText(),/17.4/);
+    await page.screenshot({path:'screenshots/earthlens-'+name+'-weather.png',animations:'disabled'});
+    assert.ok(!errors.some(x=>/SyntaxError|does not provide an export|Failed to resolve module specifier/.test(x)),'Progressive weather map must not throw module errors');
+    console.log(JSON.stringify({name,pass:true,metrics,weather:true,pageErrors:errors,consoleWarnings:consoleWarnings.slice(0,12),failedResponses:failedResponses.slice(0,12)}));
   } catch(e) {
     failed=true;
     await page.screenshot({path:'screenshots/earthlens-'+name+'-failure.png',animations:'disabled'}).catch(()=>{});
