@@ -3,7 +3,7 @@ import {execFileSync} from 'node:child_process';
 const checks=['index.html','scenes.json','open-source-stack.json'];
 for(const f of checks)await stat(f);
 execFileSync(process.execPath,['--check','app.js'],{stdio:'inherit'});
-execFileSync(process.execPath,['--test','tests/integration.test.mjs'],{stdio:'inherit'});
+execFileSync('npm',['test'],{stdio:'inherit',shell:process.platform==='win32'});
 for(const f of ['scenes.json','open-source-stack.json'])await cp(f,'dist/'+f);
 const html=await readFile('dist/index.html','utf8');
 if(!html.includes('/assets/')||!html.includes('.js'))throw Error('Vite failed to bundle the app');
