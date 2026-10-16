@@ -192,3 +192,6 @@
 .explore-panel.collapsed .explore-render-quality,.explore-panel.collapsed #explore-library-catalog,.explore-panel.collapsed .explore-oss{display:none}
 @media(max-width:540px){.explore-render-quality button{font-size:9px;min-height:31px;padding:5px 3px}}
 @media(prefers-reduced-motion:reduce){.explore-render-quality button{transition:none!important}}
+
+#explore-osm-status{font-size:9px;color:#b7d5bd;line-height:1.4;margin:7px 0}
+#explore-osm-status.is-stale{color:#ffd69b}
