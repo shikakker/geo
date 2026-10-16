@@ -152,3 +152,31 @@ Reference on SSE: https://cesium.com/learn/cesiumjs/ref-doc/Cesium3DTileset.html
 - Supplemental geospatial candidate library list in explore-layers.js is **not installed as ten extra npm dependencies**; adopt individually when required for performance and data processing.
 - Finland camera photos are still images updated periodically (about 10 minutes), not a live video stream. Other countries need their own authorized camera feeds.
 - API quotas, attribution, availability and licences remain provider-specific. Overpass servers are shared community services and must not be used as production unlimited infrastructure: production should adopt cached/self-hosted extracts and a licensed traffic provider.
+
+
+## October 16: progressive rendering, weather and 10 OSS addons
+
+Version 0.4.0: Objects load and appear progressively without a full marker teardown. Existing MapLibre markers persist across Overpass queries by stable identity; newly loaded icons rise/fade in, old icons fade out. Buildings fade in, OSM tree 3D canopies rise progressively and satellite imagery crossfades. Photo gallery thumbnails enter smoothly. Reduced-motion settings are respected.
+
+The geographic overlay waits 850 ms after a map move, cancels stale requests, reuses data with a bounded 4-minute OSM cache, and limits visible markers on phones. The map remains usable during network failures. Shared Overpass endpoints may throttle or fail and must be replaced by hosted regional extracts for substantial production traffic.
+
+Enable **Погода** in the layer panel: Open-Meteo model weather (temperature, feels-like, precipitation, cloud cover, wind, pressure, humidity) appears as georeferenced markers. Click one for details. Data is batched (up to five coordinates), cached for 15 minutes, and failures are shown instead of inventing weather. Source attribution appears in the weather card.
+
+Ten extra permissively licensed npm dependencies are **installed on demand through Vite lazy imports**, never loaded all on initial view:
+
+| Package | License | Role |
+| --- | --- | --- |
+| supercluster | ISC | Feature clustering |
+| rbush | MIT | Spatial indexing |
+| @turf/distance | MIT | Spherical distances |
+| @turf/bbox | MIT | Bounding boxes |
+| @turf/boolean-point-in-polygon | MIT | Containment queries |
+| d3-ease | BSD-3-Clause | Easing |
+| d3-interpolate | ISC | Value transitions |
+| d3-array | ISC | Numeric/geodata aggregation |
+| d3-scale | ISC | Weather temperature colors (active when weather enabled) |
+| proj4 | MIT | Coordinate projections |
+
+The add-ons have no provider usage quotas when self-hosted. **That does not make Open-Meteo or imagery services unlimited.** Open-Meteo's free tier is non-commercial only, with <10,000 requests/day and additional hourly/minute limits: https://open-meteo.com/en/terms . Production and commercial operation require licensed service arrangements.
+
+GitHub Actions checks syntax, Node regression tests, Vite build and desktop/mobile Chromium smoke. Draft PR code is not a verified production deployment.
