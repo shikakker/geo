@@ -103,7 +103,7 @@ export function mountSavedPlaces({root,toolbar,getView,onNavigate,notify=()=>{},
  doc.addEventListener('keydown',onKey);
  const unsubscribe=store.subscribe(render);
  render();
- return {store,open:()=>toggle(true),close:()=>toggle(false),get openNow(){return !panel.hidden},destroy(){
+ return {store,select:selected,open:()=>toggle(true),close:()=>toggle(false),get openNow(){return !panel.hidden},destroy(){
   win?.removeEventListener('earthlens:place-selected',onSelected);
   win?.removeEventListener('earthlens:camera-moved',onMoved);
   doc.removeEventListener('keydown',onKey);unsubscribe();trigger.remove();panel.remove()
