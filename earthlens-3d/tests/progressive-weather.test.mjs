@@ -20,6 +20,13 @@ test('New overlays have stable marker keys and request-limited cache with expiry
  const a=tileKey({lat:40.712812,lng:-73.921388},16,new Set(['trees','addresses','weather']));
  const b=tileKey({lat:40.712899,lng:-73.921355},16,new Set(['addresses','trees']));
  assert.equal(a,b,'Weather should not cause redundant OSM fetches');
+ assert.notEqual(tileKey({lat:40.7129,lng:-73.9214},16,new Set(['trees'])),
+  tileKey({lat:40.7141,lng:-73.9214},16,new Set(['trees'])),
+  'Different city blocks must not accidentally reuse a neighbour\'s OSM query');
+ assert.notEqual(tileKey({lat:40.7129,lng:-73.9214},14.99,new Set(['trees'])),
+  tileKey({lat:40.7129,lng:-73.9214},15,new Set(['trees'])),
+  'Zoom crossing the OSM radius threshold must invalidate the cache');
+
  assert.equal(inViewport(feature,{lat:40.7,lng:-73.9},16),true);
  assert.equal(inViewport(feature,{lat:48.85,lng:2.3},16),false);
 });
@@ -36,6 +43,11 @@ test('Weather point always remains near camera even at city scale',()=>{
  assert.ok(url.startsWith('https://api.open-meteo.com/v1/forecast?'));
  assert.ok(url.includes('temperature_2m'));
  assert.ok(!url.includes('apikey='));
+ assert.ok(url.includes('timezone=GMT'),'Forecast timestamps should have unambiguous UTC timezone');
+ const dateline=weatherSamples({lat:12.3,lng:179.8},9);
+ assert.ok(dateline.some(point=>point.lon<0),'Samples crossing 180 longitude must wrap around instead of clamping');
+ assert.ok(dateline.every(point=>point.lon>=-180&&point.lon<180));
+
 });
 test('Open-Meteo transformations never invent missing measurements',()=>{
  const loc=[{lat:52.52,lon:13.405}];
@@ -60,6 +72,16 @@ test('Weather requests are batched/cached and stale requests can be aborted',asy
  assert.equal(first.length,1);
  assert.equal(second.length,1);
  assert.ok(Math.abs(second[0].geometry.coordinates[1]-54.146)<.001,'cached data stays pinned to current position');
+ assert.equal(first[0].properties.approximate,false);
+ assert.equal(second[0].properties.approximate,true);
+ assert.equal(second[0].properties.sampleLat,first[0].geometry.coordinates[1],
+  'Nearby cached forecast must retain the TRUE sampled model coordinate');
+ assert.notEqual(second[0].geometry.coordinates[1],second[0].properties.sampleLat,
+  'Displaying a regional model estimate must not silently relabel its origin');
+ const newBlock=await getWeatherForView({center:{lat:54.157,lng:11.541},zoom:16,fetcher});
+ assert.equal(newBlock.length,1);
+ assert.equal(calls.length,2,'Moving to a new model tile should fetch weather for that area');
+
  const aborted=new AbortController();aborted.abort();
  await assert.rejects(getWeatherForView({center:{lat:57,lng:13},zoom:16,signal:aborted.signal,fetcher}),/Abort/);
 });
