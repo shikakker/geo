@@ -1,5 +1,6 @@
 import * as maplibregl from 'maplibre-gl';
 import {initExploreLayers,updateExploreMap,showExploreAt} from './explore-layers.js';
+import {createMapProgress,watchMapTiles} from './map-progress.js';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'leaflet/dist/leaflet.css';
@@ -398,6 +399,7 @@ function cycleStyle(){
  app.styleIndex=(app.styleIndex+1)%BASE_STYLES.length;
  const next=BASE_STYLES[app.styleIndex];
  app.tileErrors=0;
+ app.stream?.start('Переключаем картографический стиль…');
  app.map.setStyle(next.url);
  $('layers-label').textContent='OPENFREEMAP · '+next.name.toUpperCase();
  toast('Картографический слой: '+next.name);
@@ -406,6 +408,7 @@ function onMapReady(){
  if(app.mapReady)return;
  app.mapReady=true;clearTimeout(app.bootTimer);
  $('loading').classList.add('hidden');
+ app.stream?.end();
  styleLoaded();showPosition();updateGuidance();initExploreLayers({map:app.map,maplibre:maplibregl});
  if(!app.sceneDataLoaded){app.sceneDataLoaded=true;void readScenes()}
 }
@@ -416,6 +419,7 @@ async function activateRasterFallback(reason){
  app.fallbackStarting=true;
  clearTimeout(app.bootTimer);
  console.warn('MapLibre fallback:',reason);
+ app.stopProgress?.();app.stream?.start('Резервные тайлы OpenStreetMap…');
  $('loading-text').textContent='ВКЛЮЧАЕМ РЕЗЕРВНЫЙ СЛОЙ КАРТЫ';
  const center=app.map?.getCenter?.()||{lat:defaultView.center[1],lng:defaultView.center[0]};
  const zoom=app.map?.getZoom?.()||defaultView.zoom;
@@ -435,7 +439,8 @@ async function activateRasterFallback(reason){
    maxZoom:19,maxNativeZoom:19,crossOrigin:true,updateWhenIdle:true
  }).addTo(raster);
  tiles.on('tileload',()=>{tileCount++;if(tileCount>=4)$('loading').classList.add('hidden')});
- tiles.on('load',()=>{if(tileCount>0)$('loading').classList.add('hidden')});
+ tiles.on('loading',()=>app.stream?.start('Загружаем резервные тайлы…'));
+ tiles.on('load',()=>{if(tileCount>0)$('loading').classList.add('hidden');app.stream?.end()});
  tiles.on('tileerror',()=>{tileErrors++;if(tileErrors>=6&&tileCount===0){
    $('loading-text').textContent='Сервер карт недоступен. Попробуйте обновить страницу или другую сеть.';
    $('loading').classList.remove('hidden');
@@ -485,6 +490,7 @@ function supportsWebGL2(){
   }catch(error){console.warn('WebGL2 probe:',error);return false}
 }
 function boot(){
+ app.stream=createMapProgress($('app'));
  document.querySelectorAll('[data-lod]').forEach(button=>button.addEventListener('click',()=>selectLod(button.dataset.lod)));
  $('lod-debug').addEventListener('click',()=>{if(!app.lodTileset)return;app.lodDebug=!app.lodDebug;app.lodTileset.debugShowBoundingVolume=app.lodDebug;$('lod-debug').setAttribute('aria-pressed',String(app.lodDebug));app.viewer?.scene.requestRender()});
  paintLodButtons();
@@ -522,6 +528,7 @@ function boot(){
  try{
    const map=new maplibregl.Map({container:'map',style:MAP_STYLE,...parseHash(),maxPitch:85,fadeDuration:520,canvasContextAttributes:{antialias:true,preserveDrawingBuffer:false},attributionControl:false,hash:false});
    app.map=map;
+   app.stopProgress=watchMapTiles(map,app.stream);
    map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
    if(typeof maplibregl.GlobeControl==='function')map.addControl(new maplibregl.GlobeControl(),'top-right');
    map.addControl(new maplibregl.ScaleControl({unit:'metric'}),'bottom-left');
