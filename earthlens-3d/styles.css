@@ -153,3 +153,10 @@
 .scan-marker{animation:earthlens-marker-enter 360ms ease-out both}
 @media (max-width:560px){.explore-render-quality button{min-height:34px;font-size:9px}}
 @media(prefers-reduced-motion:reduce){.explore-wx-arrow{transition:none!important}.scan-marker{animation:none!important}}
+
+/* Defer gallery fade until each remote photo has actually decoded/loaded. */
+.explore-gallery a{background:#2d493b;min-height:105px}
+.explore-gallery img.explore-photo-progress{opacity:0;filter:blur(9px);transform:scale(1.04);animation:none;transition:opacity .55s ease,filter .65s ease,transform .65s ease}
+.explore-gallery img.explore-photo-progress.is-loaded{opacity:1;filter:none;transform:scale(1)}
+.explore-gallery img.explore-photo-progress.is-unavailable{opacity:.25;filter:grayscale(1);transform:none}
+@media(prefers-reduced-motion:reduce){.explore-gallery img.explore-photo-progress{transition:none!important}.explore-gallery img.explore-photo-progress.is-loaded{opacity:1}}
