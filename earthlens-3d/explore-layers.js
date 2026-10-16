@@ -25,6 +25,7 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;
 const bound=(x,min,max)=>Math.min(max,Math.max(min,x));
 const isCoord=x=>Number.isFinite(x)&&Math.abs(x)<=180;
 const cache=new Map();
+const canopyPolygon=(lon,lat,radiusMeters)=>{const latScale=radiusMeters/111320,lonScale=latScale/Math.max(.2,Math.cos(lat*Math.PI/180));const ring=[];for(let i=0;i<=10;i++){const a=i*Math.PI/5;ring.push([lon+Math.cos(a)*lonScale,lat+Math.sin(a)*latScale])}return [ring]};
 const state={map:null,fallback:false,leaflet:null,L:null,markers:[],controller:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],base:'streets',imagery:false};
 const providers=[
  {id:'airbnb',name:'Airbnb',url:(lat,lon)=>'https://www.airbnb.com/s/'+lat+','+lon+'/homes'},
@@ -126,10 +127,23 @@ function clearMarkers(){
  for(const m of state.markers)try{m.remove()}catch{}
  state.markers=[];
 }
+function drawTreeVolumes(features){
+ if(state.fallback||!state.map?.isStyleLoaded?.())return;
+ const map=state.map,source='earthlens-tree-volumes',layer='earthlens-3d-tree-canopies';
+ const treeFeatures=state.active.has('trees')?features.filter(f=>f.properties._kind==='trees'&&f.properties.natural==='tree').slice(0,420).map(f=>{const [lon,lat]=f.geometry.coordinates;const height=bound(Number(f.properties.height)||9,3,32),diameter=bound(Number(f.properties.diameter_crown)||5,2,20);return {type:'Feature',geometry:{type:'Polygon',coordinates:canopyPolygon(lon,lat,diameter/2)},properties:{height,base:height*.37}}}):[];
+ const geojson={type:'FeatureCollection',features:treeFeatures};
+ try{
+  if(map.getSource(source))map.getSource(source).setData(geojson);
+  else map.addSource(source,{type:'geojson',data:geojson});
+  if(!map.getLayer(layer))map.addLayer({id:layer,type:'fill-extrusion',source,minzoom:14.4,paint:{'fill-extrusion-color':'#2d7650','fill-extrusion-height':['get','height'],'fill-extrusion-base':['get','base'],'fill-extrusion-opacity':.86}},map.getStyle().layers.find(l=>l.type==='symbol')?.id);
+  map.setLayoutProperty(layer,'visibility',state.active.has('trees')?'visible':'none');
+ }catch(error){console.debug('Tree geometry not supported in this style',error)}
+}
 function draw(){
  if(!state.map)return;
  clearMarkers();
  const all=[...state.features,...state.cameraFeatures];
+ drawTreeVolumes(all);
  const center=state.map.getCenter(),limit=state.fallback?120:190,zoom=state.map.getZoom();
  if(zoom<13){el('explore-count').textContent='Приблизьте до 13+';return}
  const closest=all.filter(f=>state.active.has(f.properties._kind)).sort((a,b)=>{
