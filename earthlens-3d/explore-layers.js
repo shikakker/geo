@@ -6,6 +6,7 @@ import {GEO_ADDONS_NEXT} from './geo-addons-next.js';
 import {GEO_ADDONS_VISUAL} from './geo-addons-visual.js';
 import {createWindGeoJSON} from './weather-wind.js';
 import {nearestMappedFeature} from './places-nearby.js';
+import {attachGeoCatalog} from './geo-library-ui.js';
 import {createFrameQueue} from './progressive-render.js';
 import {warmSpatialAcceleration,visibleByDistance} from './spatial-acceleration.js';
 const THEMES=[
@@ -398,6 +399,7 @@ function buildPanel(){
  const aside=document.createElement('aside');aside.id='explore-panel';aside.className='explore-panel glass';
  aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник</button><span id="explore-count">Готово</span></div><p id="explore-weather-status" class="explore-licence" hidden></p><div class="explore-render-quality" role="group" aria-label="Качество отображения карты"><span>ОБЪЕКТЫ</span><button type="button" data-render-quality="smooth" aria-pressed="true">Плавно</button><button type="button" data-render-quality="detail" aria-pressed="false">Подробно</button></div><details class="explore-oss"><summary>30 GIS-библиотек · 10 новых</summary><span>Подключаются по необходимости, без API-квот</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
  el('app').append(aside);
+ attachGeoCatalog(aside);
  const weatherHours=document.createElement('div');
  weatherHours.id='explore-weather-hours';weatherHours.className='explore-weather-hours';weatherHours.hidden=true;
  const hoursLabel=document.createElement('span');hoursLabel.textContent='ПРОГНОЗ';weatherHours.append(hoursLabel);
