@@ -244,3 +244,23 @@
 #explore-camera-status{font-size:9px;line-height:1.45;color:#bad7bf}
 #explore-camera-status.is-stale{color:#fbd8a8}
 @media(prefers-reduced-motion:reduce){.explore-data-retry button{transition:none!important}}
+
+/* Native modal help: data provenance, privacy and lightweight onboarding. */
+#earthlens-help-toggle{font-size:17px}
+.earthlens-help{position:fixed;inset:0;margin:auto;padding:20px;width:min(590px,calc(100vw - 28px));max-height:min(85dvh,740px);overflow:auto;border-radius:15px;background:#10271deb;color:#eef9ef;box-shadow:0 30px 100px #000a}
+.earthlens-help:not([open]){display:none!important}
+.earthlens-help::backdrop{background:#071a13b8;backdrop-filter:blur(5px)}
+.earthlens-help-header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.earthlens-help-header h2{font-size:18px;line-height:1.35;margin:0;color:#e2f8e6}
+.earthlens-help-header button{color:#f5fff7;background:#27432e;border:1px solid #688c6f;border-radius:8px;font-size:23px;line-height:1;min-width:36px;min-height:36px}
+.earthlens-help>p,.earthlens-help-section p{font-size:12px;line-height:1.6;color:#b8d6c1}
+.earthlens-help-section{padding:11px 0;border-bottom:1px solid #ffffff20}
+.earthlens-help-section h3{margin:0 0 4px;font-size:12px;color:#dcf7e2}
+.earthlens-help-section p{margin:0}
+.earthlens-help-links{display:flex;gap:7px;flex-wrap:wrap;margin-top:15px}
+.earthlens-help-links a{font-size:10px;color:#d6f9dd;text-decoration:none;padding:9px;border:1px solid #69836e;border-radius:7px}
+.earthlens-help-links a:hover{background:#33533d}
+.earthlens-help-footnote{font-size:10px!important;color:#a7c7af!important}
+.build-version{font-size:9px;color:#95bca0;white-space:nowrap}
+@media(max-width:850px){.earthlens-help{padding:15px;max-height:85dvh}.build-version{display:none}}
+@media(prefers-reduced-motion:reduce){.earthlens-help *{transition:none!important;animation:none!important}}
