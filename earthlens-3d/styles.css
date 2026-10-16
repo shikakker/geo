@@ -91,3 +91,34 @@
 @media(max-width:850px){.explore-panel{left:9px;top:77px;width:174px;padding:9px;max-height:calc(100vh - 180px)}.explore-layer-list button{font-size:10px;padding:7px}.explore-detail{bottom:57px;max-height:53vh}.focus-card:not([hidden]){pointer-events:none}.explore-panel:not(.collapsed){top:235px;max-height:calc(100vh - 350px)}}
 @media(max-width:540px){.explore-panel{width:160px}.explore-panel:not(.collapsed){top:215px;max-height:calc(100vh - 310px)}.explore-gallery a,.explore-gallery img{width:96px}.explore-gallery img{height:77px}}
 .app.in-splat .explore-panel,.app.in-splat .explore-detail{display:none}
+
+/* EarthLens progressive rendering: animate child elements, never MapLibre marker transforms. */
+.explore-marker-shell{--appear-delay:0ms;will-change:opacity}
+.explore-marker-shell .explore-marker,.explore-leaflet .explore-marker{
+  animation:earthlens-marker-enter 420ms cubic-bezier(.19,1,.22,1) var(--appear-delay) both;
+  transform-origin:center bottom;min-width:27px
+}
+.explore-marker-shell.is-leaving .explore-marker,.explore-leaflet.is-leaving .explore-marker{
+  animation:earthlens-marker-exit 220ms ease-in forwards!important
+}
+@keyframes earthlens-marker-enter{0%{opacity:0;transform:translateY(13px) scale(.68);filter:blur(2px)}65%{opacity:1}100%{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}}
+@keyframes earthlens-marker-exit{0%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-7px) scale(.85)}}
+@keyframes earthlens-photo-enter{from{opacity:0;transform:scale(.975)}to{opacity:1;transform:scale(1)}}
+@keyframes earthlens-panel-enter{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
+.explore-weather{min-width:57px!important;height:30px!important;width:auto!important;padding:0 7px;background:#355d75;border-color:#cfefff;border-radius:17px;font-size:12px!important;white-space:nowrap}
+.explore-weather-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:11px}
+.explore-weather-cell{background:#254233;border:1px solid #416d50;border-radius:8px;padding:10px 8px;min-width:0}
+.explore-weather-cell small{display:block;color:#b2d4bb;font-size:10px}
+.explore-weather-cell b{display:block;margin-top:5px;font-size:14px}
+.explore-weather-credit{display:inline-block;margin-top:11px;font-size:10px;color:#b9edc7}
+.explore-oss{margin-top:10px;padding-top:9px;border-top:1px solid #48644f;color:#afcbb9;font-size:9px}
+.explore-oss summary{cursor:pointer;font-weight:750}
+.explore-oss span{display:block;font-size:9px;line-height:1.5;margin-top:4px}
+.explore-oss[open]{max-height:155px;overflow:auto}
+.explore-detail:not([hidden]){animation:earthlens-panel-enter 260ms cubic-bezier(.2,.8,.2,1) both}
+.explore-gallery img,.explore-camera-image{animation:earthlens-photo-enter 430ms ease-out both}
+.leaflet-tile-loaded{animation:earthlens-photo-enter 400ms ease-out both}
+@media(max-width:560px){.explore-weather-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.explore-panel .explore-layer-list{gap:4px}.explore-oss{max-width:180px}}
+@media(prefers-reduced-motion:reduce){
+ .explore-marker-shell .explore-marker,.explore-leaflet .explore-marker,.explore-detail:not([hidden]),.explore-gallery img,.explore-camera-image,.leaflet-tile-loaded{animation:none!important;transition:none!important}
+}
