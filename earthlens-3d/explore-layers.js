@@ -5,7 +5,6 @@ import {GEO_ADDONS} from './geo-addons.js';
 import {GEO_ADDONS_NEXT} from './geo-addons-next.js';
 import {createFrameQueue} from './progressive-render.js';
 import {warmSpatialAcceleration,visibleByDistance} from './spatial-acceleration.js';
-const OVERPASS_ENDPOINTS=['https://overpass-api.de/api/interpreter','https://overpass.private.coffee/api/interpreter'];
 const THEMES=[
  {id:'addresses',name:'Адреса',symbol:'⌂',on:true},
  {id:'trees',name:'Деревья и природа',symbol:'♣',on:true},
@@ -120,28 +119,6 @@ function overpassQuery(lat,lon,zoom){
  if(state.active.has('traffic'))filters.push('node["highway"="traffic_signals"](around:'+r+','+lat+','+lon+');');
  if(state.active.has('realty'))filters.push('nwr["building"](around:'+Math.min(r,500)+','+lat+','+lon+');');
  return filters.length?'[out:json][timeout:18];('+filters.join('')+');out center 1500;':'';
-}
-async function queryOverpass(query,signal){
- let last=null;
- for(const endpoint of OVERPASS_ENDPOINTS){
-  if(signal?.aborted)throw new DOMException('Aborted','AbortError');
-  try{
-   const response=await fetch(endpoint,{
-    method:'POST',body:new URLSearchParams({data:query}),
-    headers:{Accept:'application/json'},
-    signal:AbortSignal.any([signal,AbortSignal.timeout(9000)])
-   });
-   if(!response.ok)throw Error('HTTP '+response.status);
-   const data=await response.json();
-   if(!Array.isArray(data?.elements))throw Error('No Overpass elements returned');
-   return data.elements;
-  }catch(error){
-   if(signal?.aborted)throw error;
-   last=error;
-   console.debug('Overpass provider temporarily unavailable:',endpoint,error.message);
-  }
- }
- throw last||Error('No OSM provider available');
 }
 async function cameras(){
  if(!state.active.has('cameras'))return [];
@@ -266,9 +243,19 @@ async function load(){
   if(!query)return [];
   const cached=state.osmCache.get(osmKey);
   if(cached)return cached;
-  const elements=await queryOverpass(query,ctl.signal);
+  const queryParams=new URLSearchParams({
+   lat:Number(center.lat).toFixed(3),lon:Number(center.lng).toFixed(3),
+   zoom:Number(zoom).toFixed(1),
+   layers:[...state.active].filter(x=>['addresses','trees','transport','traffic','realty'].includes(x)).sort().join(',')
+  });
+  const response=await fetch('/api/osm?'+queryParams,{
+   headers:{Accept:'application/json'},
+   signal:AbortSignal.any([ctl.signal,AbortSignal.timeout(16000)])
+  });
+  if(!response.ok)throw Error('Map geodata HTTP '+response.status);
+  const data=await response.json();
   if(ctl.signal.aborted)throw new DOMException('Aborted','AbortError');
-  const features=elements.map(toFeature).filter(Boolean);
+  const features=(data.elements||[]).map(toFeature).filter(Boolean);
   state.osmCache.set(osmKey,features);
   return features;
  })();
