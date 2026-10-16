@@ -410,10 +410,16 @@ function cycleStyle(){
  $('layers-label').textContent='OPENFREEMAP · '+next.name.toUpperCase();
  toast('Картографический слой: '+next.name);
 }
+function showMapRecovery(message){
+ $('loading-text').textContent=message;
+ $('loading').classList.remove('hidden');
+ $('map-retry').hidden=false;
+}
 function onMapReady(){
  if(app.mapReady)return;
  app.mapReady=true;clearTimeout(app.bootTimer);
  $('loading').classList.add('hidden');
+ $('map-retry').hidden=true;
  app.stream?.end();
  styleLoaded();showPosition();updateGuidance();initExploreLayers({map:app.map,maplibre:maplibregl});
  if(!app.sceneDataLoaded){app.sceneDataLoaded=true;void readScenes()}
@@ -432,7 +438,7 @@ async function activateRasterFallback(reason){
  let L;
  try{L=await import('leaflet')}catch(err){
    console.error('Leaflet import failed:',err);
-   $('loading-text').textContent='Карта недоступна. Проверьте Интернет и обновите страницу.';
+   showMapRecovery('Карта недоступна. Проверьте интернет и повторите загрузку.');
    app.fallbackStarting=false;return;
  }
  try{app.map?.remove?.()}catch(err){console.warn('Map cleanup',err)}
@@ -444,12 +450,11 @@ async function activateRasterFallback(reason){
    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>',
    maxZoom:19,maxNativeZoom:19,crossOrigin:true,updateWhenIdle:true,keepBuffer:window.innerWidth<650?2:4
  }).addTo(raster);
- tiles.on('tileload',()=>{tileCount++;if(tileCount>=4)$('loading').classList.add('hidden')});
+ tiles.on('tileload',()=>{tileCount++;if(tileCount>=4){$('loading').classList.add('hidden');$('map-retry').hidden=true}});
  tiles.on('loading',()=>app.stream?.start('Загружаем резервные тайлы…'));
- tiles.on('load',()=>{if(tileCount>0)$('loading').classList.add('hidden');app.stream?.end()});
+ tiles.on('load',()=>{if(tileCount>0){$('loading').classList.add('hidden');$('map-retry').hidden=true}app.stream?.end()});
  tiles.on('tileerror',()=>{tileErrors++;if(tileErrors>=6&&tileCount===0){
-   $('loading-text').textContent='Сервер карт недоступен. Попробуйте обновить страницу или другую сеть.';
-   $('loading').classList.remove('hidden');
+   showMapRecovery('Сервер карт недоступен. Повторите попытку или переключитесь на другую сеть.');
  }});
  L.control.zoom({position:'topright'}).addTo(raster);
  app.fallbackActive=true;app.fallbackStarting=false;
@@ -497,6 +502,7 @@ function supportsWebGL2(){
 }
 function boot(){
  app.stream=createMapProgress($('app'));
+ $('map-retry').addEventListener('click',()=>window.location.reload());
  app.placesHub=mountSavedPlaces({
   root:$('app'),toolbar:document.querySelector('.corner-toolbar'),
   getView:()=>{
