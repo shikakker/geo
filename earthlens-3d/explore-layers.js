@@ -38,7 +38,7 @@ const bound=(x,min,max)=>Math.min(max,Math.max(min,x));
 const isCoord=x=>Number.isFinite(x)&&Math.abs(x)<=180;
 const cache=new Map();
 const canopyPolygon=(lon,lat,radiusMeters)=>{const latScale=radiusMeters/111320,lonScale=latScale/Math.max(.2,Math.cos(lat*Math.PI/180));const ring=[];for(let i=0;i<=10;i++){const a=i*Math.PI/5;ring.push([lon+Math.cos(a)*lonScale,lat+Math.sin(a)*latScale])}return [ring]};
-const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',qualityPreference:'auto',qualityController:null,stopFpsSampling:null,selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null,treeIndex:null,treeEpoch:0};
+const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',qualityPreference:'auto',qualityController:null,stopFpsSampling:null,selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),osmStatus:'idle',base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null,treeIndex:null,treeEpoch:0};
 const providers=[
  {id:'airbnb',name:'Airbnb',url:(lat,lon)=>'https://www.airbnb.com/s/'+lat+','+lon+'/homes'},
  {id:'booking',name:'Booking',url:(lat,lon)=>'https://www.booking.com/searchresults.html?ss='+encodeURIComponent(lat+','+lon)},
@@ -353,7 +353,7 @@ async function load(){
  const query=hasOSM?overpassQuery(Number(center.lat.toFixed(4)),Number(center.lng.toFixed(4)),zoom):'';
  const osmKey=tileKey(center,zoom,state.active);
  const osmTask=(async()=>{
-  if(!query)return [];
+  if(!query)return {features:[],stale:false};
   const cached=state.osmCache.get(osmKey);
   if(cached)return cached;
   const queryParams=new URLSearchParams({
@@ -369,16 +369,24 @@ async function load(){
   const data=await response.json();
   if(ctl.signal.aborted)throw new DOMException('Aborted','AbortError');
   const features=(data.elements||[]).map(toFeature).filter(Boolean);
-  state.osmCache.set(osmKey,features);
-  return features;
+  const result={features,stale:data.stale===true};
+  state.osmCache.set(osmKey,result);
+  return result;
  })();
  const cameraTask=state.active.has('cameras')&&zoom>=13?cameras():Promise.resolve([]);
  const weatherTask=state.active.has('weather')?getWeatherForView({center,zoom,signal:ctl.signal,offsetHours:state.weatherOffsetHours}):Promise.resolve([]);
  const current=()=>seq===state.seq&&!ctl.signal.aborted;
- const osmDone=osmTask.then(features=>{
+ const osmDone=osmTask.then(result=>{
   if(!current())return;
-  state.features=features;draw();
- }).catch(error=>{if(current())console.debug('OSM detail source unavailable; previous data remains visible',error)});
+  state.features=result.features;
+  state.osmStatus=!hasOSM?'idle':result.stale?'stale':'fresh';
+  updateOSMStatus();draw();
+ }).catch(error=>{
+  if(!current())return;
+  state.osmStatus='offline';
+  updateOSMStatus();
+  console.debug('OSM detail source unavailable; previous data remains visible',error);
+ });
  const cameraDone=cameraTask.then(features=>{
   if(!current())return;
   state.cameraFeatures=features;draw();
@@ -407,6 +415,20 @@ async function load(){
  await Promise.allSettled([osmDone,cameraDone,weatherDone]);
  if(current())draw();
 }
+function updateOSMStatus(){
+ const target=el('explore-osm-status');
+ if(!target)return;
+ const enabled=[...state.active].some(id=>['addresses','trees','transport','traffic','realty'].includes(id));
+ target.hidden=!enabled;
+ const statuses={
+  idle:'OSM · приблизьте карту для объектов',
+  fresh:'OSM · данные загружены',
+  stale:'OSM · сохранённые данные (источник недоступен)',
+  offline:'OSM · нет соединения, показаны ранее загруженные объекты'
+ };
+ target.textContent=statuses[state.osmStatus]||'';
+ target.classList.toggle('is-stale',state.osmStatus==='stale'||state.osmStatus==='offline');
+}
 function schedule(){clearTimeout(state.timer);state.timer=setTimeout(load,window.innerWidth<650?560:460)}
 function updateToggles(){
  document.querySelectorAll('[data-explore-layer]').forEach(btn=>{const active=state.active.has(btn.dataset.exploreLayer);btn.setAttribute('aria-pressed',String(active));btn.classList.toggle('on',active)});
@@ -414,6 +436,7 @@ function updateToggles(){
  if(row)row.hidden=!state.active.has('weather');
  document.querySelectorAll('[data-weather-hour]').forEach(btn=>btn.setAttribute('aria-pressed',String(Number(btn.dataset.weatherHour)===state.weatherOffsetHours)));
  document.querySelectorAll('[data-render-quality]').forEach(btn=>btn.setAttribute('aria-pressed',String(btn.dataset.renderQuality===state.qualityPreference)));
+ updateOSMStatus();
  const status=el('explore-quality-status');
  if(status)status.textContent=(state.qualityPreference==='auto'?'Авто · ':'')+(state.quality==='smooth'?'плавно':'подробно');
 }
@@ -442,7 +465,7 @@ function satellite(){
 function buildPanel(){
  if(el('explore-panel'))return;
  const aside=document.createElement('aside');aside.id='explore-panel';aside.className='explore-panel glass';
- aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник</button><span id="explore-count">Готово</span></div><p id="explore-weather-status" class="explore-licence" hidden></p><div class="explore-render-quality" role="group" aria-label="Качество отображения карты"><span>ОБЪЕКТЫ</span><button type="button" data-render-quality="auto" aria-pressed="true">Авто</button><button type="button" data-render-quality="smooth" aria-pressed="false">Плавно</button><button type="button" data-render-quality="detail" aria-pressed="false">Подробно</button><small id="explore-quality-status" aria-live="polite">Авто · плавно</small></div><details class="explore-oss"><summary>30 GIS-библиотек · 10 новых</summary><span>Подключаются по необходимости, без API-квот</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
+ aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник</button><span id="explore-count">Готово</span></div><p id="explore-weather-status" class="explore-licence" hidden></p><p id="explore-osm-status" class="explore-licence" role="status" aria-live="polite" hidden></p><div class="explore-render-quality" role="group" aria-label="Качество отображения карты"><span>ОБЪЕКТЫ</span><button type="button" data-render-quality="auto" aria-pressed="true">Авто</button><button type="button" data-render-quality="smooth" aria-pressed="false">Плавно</button><button type="button" data-render-quality="detail" aria-pressed="false">Подробно</button><small id="explore-quality-status" aria-live="polite">Авто · плавно</small></div><details class="explore-oss"><summary>30 GIS-библиотек · 10 новых</summary><span>Подключаются по необходимости, без API-квот</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
  el('app').append(aside);
  attachGeoCatalog(aside);
  const weatherHours=document.createElement('div');
