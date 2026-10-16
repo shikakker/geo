@@ -68,7 +68,7 @@ export function mountSavedPlaces({root,toolbar,getView,onNavigate,notify=()=>{},
   }
   updatePrivacy();
  }
- function toggle(next=!panel.hidden){
+ function toggle(next=panel.hidden){
   const open=Boolean(next);
   panel.hidden=!open;trigger.setAttribute('aria-expanded',String(open));
   trigger.classList.toggle('active',open);
