@@ -58,3 +58,15 @@ Before production promotion, verify the specific Vercel team/project, that the h
 - **P1 — account sync and teams:** bookmarks are local-only; cloud sync, user identity, personal privacy/data export policies and collaborative maps are future products, not claimed implemented features.
 
 This document is the release acceptance baseline, not an assertion that every listed external service is available worldwide.
+
+## v1.0 RC: Fintraffic hardening
+
+The Finnish road-camera layer uses a **same-origin, read-only `/api/cameras` endpoint** instead of calling the Fintraffic API with custom headers from browser JavaScript. This avoids browser CORS failures and excess requests to public infrastructure. The Vercel function and local Vite preview share exactly the same handler.
+
+- The backend uses the supported Fintraffic weathercam station API, checks station state and collection status and only accepts presets marked `inCollection`.
+- Only georeferenced Finnish camera entries with a provider-approved snapshot URL are returned. Inactive stations, outside-Finland coordinates and malformed image preset IDs are filtered.
+- Catalogue responses are cached for 10 minutes (including Vercel CDN caching), with a bounded one-hour marked-stale fallback on provider interruption. Camera images are vendor-updated approximately every 10 minutes, **not a guaranteed live feed**.
+- Browser displays Fintraffic availability/coverage, not a worldwide camera claim. The layer is off by default; no data is requested before enabling it.
+- Deterministic camera-provider normalization, server CORS-safety and failure tests protect this flow. See [Fintraffic's road traffic API documentation](https://www.digitraffic.fi/en/road-traffic/).
+
+Limitations: camera snapshots remain provider-hosted external images and are not guaranteed to be accessible from every jurisdiction or network. Fintraffic's API restrictions/attribution still apply.
