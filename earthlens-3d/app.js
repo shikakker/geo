@@ -451,7 +451,7 @@ async function activateRasterFallback(reason){
    queryRenderedFeatures:()=>[],
  };
  raster.on('moveend',cameraMoved);
- raster.on('click',e=>showExploreAt(e.latlng.lat,e.latlng.lng,'Точка на карте')));
+ raster.on('click',e=>showExploreAt(e.latlng.lat,e.latlng.lng,'Точка на карте'));
  $('tilt').textContent='2.5D';
  $('layers-label').textContent='OSM + OPENFREEMAP · 2.5D';
  $('guidance').textContent='Приближайте карту: здания поднимаются объёмными блоками даже без WebGL. Фотографические сканы требуют WebGL.';
