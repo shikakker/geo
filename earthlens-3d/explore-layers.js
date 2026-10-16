@@ -274,7 +274,7 @@ async function load(){
   if(!current())return;
   state.weatherFeatures=coloured;state.weatherError=state.active.has('weather')&&coloured.length===0;
   const note=el('explore-weather-status');
-  if(note){note.hidden=!state.active.has('weather');note.textContent=state.active.has('weather')?'Прогноз Open-Meteo · кеш 15 минут':''}
+  if(note){note.hidden=!state.active.has('weather');note.textContent=state.weatherError?'Нет данных на выбранный час':state.active.has('weather')?(state.weatherOffsetHours?'Прогноз +'+state.weatherOffsetHours+' ч':'Сейчас')+' · Open-Meteo · кеш 15 мин':''}
   draw();
  }).catch(error=>{
   if(!current())return;
@@ -290,6 +290,9 @@ async function load(){
 function schedule(){clearTimeout(state.timer);state.timer=setTimeout(load,850)}
 function updateToggles(){
  document.querySelectorAll('[data-explore-layer]').forEach(btn=>{const active=state.active.has(btn.dataset.exploreLayer);btn.setAttribute('aria-pressed',String(active));btn.classList.toggle('on',active)});
+ const row=el('explore-weather-hours');
+ if(row)row.hidden=!state.active.has('weather');
+ document.querySelectorAll('[data-weather-hour]').forEach(btn=>btn.setAttribute('aria-pressed',String(Number(btn.dataset.weatherHour)===state.weatherOffsetHours)));
 }
 function satellite(){
  if(state.fallback){el('explore-satellite').setAttribute('aria-pressed','false');return}
@@ -316,13 +319,22 @@ function satellite(){
 function buildPanel(){
  if(el('explore-panel'))return;
  const aside=document.createElement('aside');aside.id='explore-panel';aside.className='explore-panel glass';
- aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник</button><span id="explore-count">Готово</span></div><p id="explore-weather-status" class="explore-licence" hidden></p><details class="explore-oss"><summary>10 бесплатных GIS-библиотек</summary><span>Подключаются по необходимости, без API-квот</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
+ aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник</button><span id="explore-count">Готово</span></div><p id="explore-weather-status" class="explore-licence" hidden></p><details class="explore-oss"><summary>20 GIS-библиотек · 10 новых</summary><span>Подключаются по необходимости, без API-квот</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
  el('app').append(aside);
+ const weatherHours=document.createElement('div');
+ weatherHours.id='explore-weather-hours';weatherHours.className='explore-weather-hours';weatherHours.hidden=true;
+ const hoursLabel=document.createElement('span');hoursLabel.textContent='ПРОГНОЗ';weatherHours.append(hoursLabel);
+ for(const hours of WEATHER_HORIZONS){
+  const btn=document.createElement('button');btn.type='button';btn.dataset.weatherHour=String(hours);
+  btn.textContent=hours?'+'+hours+' ч':'Сейчас';weatherHours.append(btn);
+ }
+ aside.querySelector('#explore-weather-status').before(weatherHours);
  const addonDetails=aside.querySelector('.explore-oss');
- GEO_ADDONS.forEach(addon=>{const line=document.createElement('span');line.textContent=addon.name+' · '+addon.purpose;addonDetails.append(line)});
+ [...GEO_ADDONS,...GEO_ADDONS_NEXT].forEach(addon=>{const line=document.createElement('span');line.textContent=addon.name+' · '+addon.purpose;addonDetails.append(line)});
  const detail=document.createElement('section');detail.id='explore-detail';detail.className='explore-detail glass';detail.hidden=true;detail.setAttribute('aria-label','Сведения и фотографии места');el('app').append(detail);
  updateToggles();
  aside.querySelectorAll('[data-explore-layer]').forEach(btn=>btn.addEventListener('click',()=>{const k=btn.dataset.exploreLayer;state.active.has(k)?state.active.delete(k):state.active.add(k);updateToggles();draw();schedule()}));
+ aside.querySelectorAll('[data-weather-hour]').forEach(btn=>btn.addEventListener('click',()=>{const h=Number(btn.dataset.weatherHour);if(!WEATHER_HORIZONS.includes(h))return;state.weatherOffsetHours=h;updateToggles();schedule()}));
  el('explore-collapse').addEventListener('click',()=>{aside.classList.toggle('collapsed');el('explore-collapse').textContent=aside.classList.contains('collapsed')?'+':'−'});
  el('explore-satellite').addEventListener('click',()=>{if(state.fallback){alert('Спутниковый слой доступен в WebGL-режиме.');return}state.imagery=!state.imagery;satellite()});
 }
@@ -331,6 +343,7 @@ export function initExploreLayers({map,maplibre=null,fallback=false,leaflet=null
  buildPanel();
  map.on?.('moveend',schedule);
  if(!fallback)map.on?.('style.load',()=>{satellite();schedule()});
+ void warmSpatialAcceleration().then(()=>{if(state.map===map)draw()});
  schedule();
 }
 export function updateExploreMap({map,maplibre=null,fallback=false,leaflet=null,L=null}){
@@ -344,5 +357,5 @@ export function showExploreAt(lat,lon,title='Место на карте',tags={}
  if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
  openDetail({type:'Feature',geometry:{type:'Point',coordinates:[lon,lat]},properties:{...tags,name:title,_kind:'place'}});
 }
-export const EXTRA_OPEN_SOURCE_LIBRARIES=LIBRARIES;
+export const EXTRA_OPEN_SOURCE_LIBRARIES=[...GEO_ADDONS,...GEO_ADDONS_NEXT];
 export const REALTY_PROVIDERS=providers.map(({id,name})=>({id,name,mode:'external-search-only'}));
