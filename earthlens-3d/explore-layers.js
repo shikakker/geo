@@ -7,6 +7,7 @@ import {GEO_ADDONS_VISUAL} from './geo-addons-visual.js';
 import {createWindGeoJSON} from './weather-wind.js';
 import {nearestMappedFeature} from './places-nearby.js';
 import {attachGeoCatalog} from './geo-library-ui.js';
+import {solarPosition} from './solar-position.js';
 import {createFrameQueue} from './progressive-render.js';
 import {warmSpatialAcceleration,visibleByDistance} from './spatial-acceleration.js';
 const THEMES=[
@@ -70,6 +71,12 @@ function openDetail(feature){
    el('explore-detail').append(details);
    const windInfo=document.createElement('p');windInfo.className='explore-sub';windInfo.textContent='Линии ветра показывают направление, а не реальную траекторию перемещения воздуха.';el('explore-detail').append(windInfo);
    const credit=document.createElement('a');credit.className='explore-weather-credit';credit.href='https://open-meteo.com/';credit.target='_blank';credit.rel='noopener noreferrer';credit.textContent='Данные и условия © Open-Meteo ↗';el('explore-detail').append(credit);
+   const solar=document.createElement('p');solar.className='explore-sub';solar.textContent='Рассчитываем положение Солнца…';
+   el('explore-detail').append(solar);
+   void solarPosition({lat,lon}).then(value=>{
+    if(!value||el('explore-detail').hidden||!solar.isConnected)return;
+    solar.textContent='☀ Солнце сейчас: '+value.altitude+'° над горизонтом · азимут '+value.azimuth+'° · расчёт SunCalc';
+   }).catch(()=>{if(solar.isConnected)solar.remove()});
    return;
  }
  const note=kind==='cameras'?'Дорожная камера · снимок обновляется поставщиком; это не live-видео':kind==='traffic'?'Координаты дорожного объекта из OpenStreetMap':'Данные OpenStreetMap, точность и полнота зависят от региона';
