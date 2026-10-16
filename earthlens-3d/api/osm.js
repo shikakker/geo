@@ -1,11 +1,13 @@
 // Same-origin read-only OSM query proxy for Vercel Vite deployment.
 // Prevents browser CORS failures. This is a bounded proxy, not an unlimited API.
+import {createSingleFlight} from '../single-flight.js';
 const SOURCES=[
  'https://overpass-api.de/api/interpreter',
  'https://overpass.private.coffee/api/interpreter'
 ];
 const KINDS=new Set(['addresses','trees','transport','traffic','realty']);
 const cache=new Map();
+const inflight=createSingleFlight();
 const bounds=(value,min,max)=>Math.min(max,Math.max(min,value));
 export function paramsFromUrl(url){
  const search=new URL(url,'https://earthlens-3d.vercel.app').searchParams;
@@ -72,7 +74,7 @@ export default async function handler(req,res){
  const key=JSON.stringify(params),hit=cache.get(key);
  if(hit&&Date.now()-hit.time<10*60*1000){send(res,200,hit.data);return}
  try{
-  const elements=await queryUpstream(makeOverpassQuery(params),fetch);
+  const elements=await inflight.run(key,()=>queryUpstream(makeOverpassQuery(params),fetch));
   const result={elements,source:'OpenStreetMap / Overpass',updatedAt:new Date().toISOString()};
   cache.set(key,{time:Date.now(),data:result});
   if(cache.size>60)cache.delete(cache.keys().next().value);
