@@ -1,0 +1,93 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {createTTLCache,featureKey,tileKey,inViewport} from '../layer-runtime.js';
+import {weatherSamples,weatherFeatures,weatherRequest,getWeatherForView,resetWeatherCache,weatherSymbol} from '../weather-layer.js';
+import {GEO_ADDONS,activeGeoAddons} from '../geo-addons.js';
+const root=new URL('../',import.meta.url);
+const read=name=>readFile(new URL(name,root),'utf8');
+test('New overlays have stable marker keys and request-limited cache with expiry',()=>{
+ const feature={id:'node/129',geometry:{coordinates:[-73.9,40.7]},properties:{_kind:'trees'}};
+ assert.equal(featureKey(feature),'node/129');
+ assert.equal(featureKey({geometry:{coordinates:[-73.9,40.7]},properties:{_kind:'weather'}}),'weather:-73.90000:40.70000');
+ let clock=0;
+ const cache=createTTLCache({limit:2,ttlMs:120,now:()=>clock});
+ cache.set('one',1);cache.set('two',2);
+ assert.equal(cache.get('one'),1);
+ cache.set('three',3);
+ assert.equal(cache.get('two'),undefined,'LRU eviction');
+ clock=121;assert.equal(cache.get('one'),undefined,'TTL expiry');
+ const a=tileKey({lat:40.712812,lng:-73.921388},16,new Set(['trees','addresses','weather']));
+ const b=tileKey({lat:40.712899,lng:-73.921355},16,new Set(['addresses','trees']));
+ assert.equal(a,b,'Weather should not cause redundant OSM fetches');
+ assert.equal(inViewport(feature,{lat:40.7,lng:-73.9},16),true);
+ assert.equal(inViewport(feature,{lat:48.85,lng:2.3},16),false);
+});
+test('Weather point always remains near camera even at city scale',()=>{
+ const center={lat:40.748701,lng:-73.985302};
+ const one=weatherSamples(center,16);
+ assert.equal(one.length,1);
+ assert.ok(Math.abs(one[0].lat-center.lat)<.001);
+ assert.ok(Math.abs(one[0].lon-center.lng)<.001);
+ const five=weatherSamples(center,9);
+ assert.equal(five.length,5);
+ assert.ok(weatherSamples({lat:999,lng:0},10).length===0);
+ const url=weatherRequest(one);
+ assert.ok(url.startsWith('https://api.open-meteo.com/v1/forecast?'));
+ assert.ok(url.includes('temperature_2m'));
+ assert.ok(!url.includes('apikey='));
+});
+test('Open-Meteo transformations never invent missing measurements',()=>{
+ const loc=[{lat:52.52,lon:13.405}];
+ const good=weatherFeatures(loc,{current:{temperature_2m:12.2,weather_code:3,wind_speed_10m:9,cloud_cover:80}});
+ assert.equal(good.length,1);
+ assert.equal(good[0].properties.temperature,12.2);
+ assert.equal(good[0].properties.wind,9);
+ assert.equal(good[0].properties.precipitation,null);
+ assert.equal(weatherFeatures(loc,{current:{weather_code:2}}).length,0);
+ assert.equal(weatherSymbol(0),'☀');
+ assert.equal(weatherSymbol(95),'ϟ');
+ assert.equal(weatherSymbol(null),'◌');
+});
+test('Weather requests are batched/cached and stale requests can be aborted',async()=>{
+ resetWeatherCache();
+ const center={lat:54.1451,lng:11.5339},calls=[];
+ const response={current:{temperature_2m:9,weather_code:1,relative_humidity_2m:61}};
+ const fetcher=async url=>{calls.push(url);return{ok:true,json:async()=>response}};
+ const first=await getWeatherForView({center,zoom:16,fetcher});
+ const second=await getWeatherForView({center:{lat:54.146,lng:11.534},zoom:16,fetcher});
+ assert.equal(calls.length,1,'Revisit nearby area uses the same 15-minute cache entry');
+ assert.equal(first.length,1);
+ assert.equal(second.length,1);
+ assert.ok(Math.abs(second[0].geometry.coordinates[1]-54.146)<.001,'cached data stays pinned to current position');
+ const aborted=new AbortController();aborted.abort();
+ await assert.rejects(getWeatherForView({center:{lat:57,lng:13},zoom:16,signal:aborted.signal,fetcher}),/Abort/);
+});
+test('Exactly ten real permissive npm libraries, each a lazy importer',async()=>{
+ const pkg=JSON.parse(await read('package.json'));
+ assert.equal(GEO_ADDONS.length,10);
+ assert.equal(new Set(GEO_ADDONS.map(x=>x.id)).size,10);
+ assert.deepEqual(activeGeoAddons(),[]);
+ for(const addon of GEO_ADDONS){
+  assert.equal(pkg.dependencies[addon.id==='distance'?'@turf/distance':addon.id==='bbox'?'@turf/bbox':addon.id==='point-in-polygon'?'@turf/boolean-point-in-polygon':addon.id==='easing'?'d3-ease':addon.id==='interpolate'?'d3-interpolate':addon.id==='array'?'d3-array':addon.id==='scale'?'d3-scale':addon.id],addon.version);
+  assert.match(addon.url,/^https:\/\/github\.com\//);
+  assert.ok(['MIT','ISC'].includes(addon.license));
+  assert.equal(typeof addon.load,'function');
+ }
+});
+test('Exploration keeps stable markers and incremental map rendering',async()=>{
+ const src=await read('explore-layers.js'),css=await read('styles.css'),app=await read('app.js');
+ assert.match(src,/featureKey\(f\)/);
+ assert.match(src,/state\.markerIndex\.get\(key\)/);
+ assert.match(src,/state\.markerIndex\.set\(key,entry\)/);
+ assert.match(src,/getWeatherForView/);
+ assert.match(src,/createTTLCache/);
+ assert.match(src,/raster-opacity-transition/);
+ assert.match(src,/fill-extrusion-height-transition/);
+ assert.match(src,/prefers-reduced-motion: reduce/);
+ assert.match(css,/earthlens-marker-enter/);
+ assert.match(css,/earthlens-photo-enter/);
+ assert.match(css,/prefers-reduced-motion:reduce/);
+ assert.match(app,/fadeDuration:520/);
+ assert.match(app,/fill-extrusion-opacity-transition/);
+});
