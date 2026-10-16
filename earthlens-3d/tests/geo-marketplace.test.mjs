@@ -21,7 +21,7 @@ test('Exactly 100 ADDITIONAL distinct optional geospatial/3D/weather libraries',
   assert.ok(!existing.has(item.id),'Must add new, not repeated, packages: '+item.id);
   assert.ok(!Object.hasOwn(pkg.dependencies,item.package),'Catalog should not secretly install 100 dependencies: '+item.package);
   assert.match(item.info,/^https:\/\/www\.npmjs\.com\/package\//);
-  assert.match(item.id,/^(?:@[a-z0-9-]+\/)?[a-z0-9][a-z0-9.-]*$/);
+  assert.match(item.id,/^(?:@[a-z0-9._-]+\/)?[a-z0-9][a-z0-9._-]*$/);
   assert.equal(item.status,'available-to-install');
  }
  assert.deepEqual(Object.keys(GEO_ENABLED_LIBRARIES),[]);
