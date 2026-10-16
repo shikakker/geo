@@ -18,7 +18,9 @@ test('Public map enrichments declare six thematic layers and 3D tree extrusions'
  assert.match(src,/earthlens-3d-tree-canopies/);
  assert.match(src,/openstreetcam|Fintraffic|digitraffic/i);
  assert.match(src,/World_Imagery\/MapServer/);
- assert.match(src,/new URLSearchParams\(\{data:query\}\)/);
+ assert.match(src,/fetch\('\/api\/osm\?'/);
+ const proxy=await read('api/osm.js');
+ assert.match(proxy,/new URLSearchParams\(\{data:query\}\)/);
  assert.match(src,/feature.properties|f.properties/);
 });
 test('Ten distinct photo adapters and license/proximity safeguards',async()=>{
