@@ -62,7 +62,7 @@ test('Adaptive map quality keeps reduced-motion and attributions',async()=>{
  assert.match(explore,/data-render-quality/);
  assert.match(explore,/quality:'smooth'/);
  assert.match(explore,/nearestMappedFeature/);
- assert.match(explore,/30 GIS-библиотек/);
+ assert.match(explore,/30 GIS-модулей движка/);
  assert.match(style,/explore-render-quality/);
  assert.match(style,/prefers-reduced-motion/);
  assert.match(style,/explore-wx-arrow/);
