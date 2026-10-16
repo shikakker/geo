@@ -36,6 +36,14 @@ for (const {name,width,height,isMobile} of [
       body:JSON.stringify(points.length>1?points.map(record):record())});
   });
 
+  // Exercise the same-origin geodata layer deterministically; the server-side
+  // route is independently tested in tests/osm-api.test.mjs.
+  await page.route(url=>url.pathname==='/api/osm',async route=>{
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({elements:[
+      {type:'node',id:90001,lat:40.74873,lon:-73.98531,tags:{'addr:street':'Fifth Avenue','addr:housenumber':'350',name:'Example address'}},
+      {type:'node',id:90002,lat:40.74866,lon:-73.98525,tags:{natural:'tree',height:'9',name:'Example tree'}}
+    ]})});
+  });
   const errors = [];
   const failedResponses = [];
   const consoleWarnings=[];
@@ -83,6 +91,8 @@ for (const {name,width,height,isMobile} of [
     assert.ok(metrics.searchButtonRight<=width+1,'Search submit button must fit inside viewport');
     assert.ok(!errors.some(x=>/does not provide an export named 'default'|Failed to resolve module specifier|SyntaxError/i.test(x)),
       'MapLibre import failed: '+errors.join(' | '));
+    await page.locator('.explore-addresses').first().waitFor({state:'visible',timeout:16000});
+    await page.locator('.explore-trees').first().waitFor({state:'visible',timeout:16000});
     await page.screenshot({path:'screenshots/earthlens-'+name+'.png',animations:'disabled'});
     // Weather must render without waiting for a slow/failed Overpass request.
     await page.locator('[data-explore-layer="weather"]').click();
