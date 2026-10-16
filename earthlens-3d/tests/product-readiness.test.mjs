@@ -1,0 +1,36 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const read=name=>readFile(new URL('../'+name,import.meta.url),'utf8');
+test('Production UX surfaces real provider health and throttles manual retries',async()=>{
+ const src=await read('explore-layers.js');
+ assert.match(src,/function updateCameraStatus\(/);
+ assert.match(src,/source:'Fintraffic Digitraffic'/);
+ assert.match(src,/state\.cameraStatus='offline'/);
+ assert.match(src,/function retryDataSources\(/);
+ assert.match(src,/now-state\.lastManualRetry<9000/);
+ assert.match(src,/state\.osmCache\.clear\(\)/);
+ assert.match(src,/resetWeatherCache\(\)/);
+ assert.match(src,/id="explore-retry"/);
+ assert.match(src,/id="explore-camera-status"/);
+ assert.match(src,/Камеры · снимки Fintraffic доступны/);
+ const help=await read('product-help.js');
+ assert.match(help,/Конфиденциальность/);
+ assert.match(help,/не прямое видео/);
+ assert.match(help,/Open-Meteo · лицензия и лимиты/);
+ assert.match(help,/aria-labelledby/);
+ assert.match(help,/showModal/);
+});
+test('V1 release candidate has inspectable version and keyless stable modules',async()=>{
+ const app=await read('app.js'),html=await read('index.html'),pkg=JSON.parse(await read('package.json'));
+ assert.match(pkg.version,/^1\.0\.0-rc\./);
+ assert.match(app,/version as APP_VERSION/);
+ assert.match(app,/mountProductHelp\(/);
+ assert.match(app,/attachPlaceSearch\(/);
+ assert.match(app,/mountSavedPlaces\(/);
+ assert.match(html,/id="build-version"/);
+ assert.match(html,/lang="ru"/);
+ assert.match(html,/aria-label="Найти место"/);
+ assert.match(app,/fallbackActive/);
+ assert.ok(!Object.hasOwn(pkg.dependencies,'@deck.gl/core'),'Heavy experimental GPU engines must remain opt-in');
+});
