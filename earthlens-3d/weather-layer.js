@@ -1,11 +1,13 @@
 // Real weather model values; no fabricated values on failed/limited API requests.
 // Open-Meteo free tier is non-commercial, quota-limited. Fetch only on demand.
 import {loadGeoAddon} from './geo-addons.js';
+import {createSingleFlight,awaitWithSignal} from './single-flight.js';
 const API='https://api.open-meteo.com/v1/forecast';
 const CURRENT='temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m,pressure_msl';
 export const WEATHER_HORIZONS=Object.freeze([0,3,6,12]);
 const TTL=15*60*1000;
 const cache=new Map();
+const weatherFlights=createSingleFlight();
 export function weatherSymbol(code){
  const value=Number(code);
  if(code===null||code===undefined||!Number.isFinite(value))return '◌';
@@ -79,29 +81,28 @@ export async function getWeatherForView({center,zoom,signal,offsetHours=0,fetche
  if(!WEATHER_HORIZONS.includes(offsetHours))throw Error('Unsupported weather horizon');
  const samples=weatherSamples(center,zoom);
  if(!samples.length)return [];
+ if(signal?.aborted)throw new DOMException('Aborted','AbortError');
  const precision=zoom>=12?2:zoom>=8?1:0;
  const key=[Math.round(zoom>=12?12:zoom>=10?10:zoom>=8?8:6),samples.length,Number(center.lat).toFixed(precision),Number(center.lng).toFixed(precision)].join(':');
  const hit=cache.get(key);
  if(hit&&Date.now()-hit.time<TTL)return weatherFeatures(samples,hit.raw,offsetHours);
  const url=weatherRequest(samples);
- const controller=new AbortController();
- const abort=()=>controller.abort();
- if(signal?.aborted)throw new DOMException('Aborted','AbortError');
- signal?.addEventListener('abort',abort,{once:true});
- const timer=setTimeout(()=>controller.abort(),9500);
- try{
-  const response=await fetcher(url,{signal:controller.signal,headers:{Accept:'application/json'}});
+ // Multiple map callbacks requesting the same weather grid share one
+ // transport; switching a forecast hour uses cached raw hourly data.
+ const raw=await awaitWithSignal(weatherFlights.run(key,async()=>{
+  const existing=cache.get(key);
+  if(existing&&Date.now()-existing.time<TTL)return existing.raw;
+  const response=await fetcher(url,{
+   signal:AbortSignal.timeout(9500),headers:{Accept:'application/json'}
+  });
   if(!response.ok)throw new Error('Weather API HTTP '+response.status);
   const data=await response.json();
-  const features=weatherFeatures(samples,data,offsetHours);
-  if(signal?.aborted)throw new DOMException('Aborted','AbortError');
   cache.set(key,{time:Date.now(),raw:data});
   if(cache.size>24)cache.delete(cache.keys().next().value);
-  return features;
- }finally{
-  clearTimeout(timer);
-  signal?.removeEventListener('abort',abort);
- }
+  return data;
+ }),signal);
+ if(signal?.aborted)throw new DOMException('Aborted','AbortError');
+ return weatherFeatures(samples,raw,offsetHours);
 }
 export async function temperatureColor(temp){
  // D3 is used only when the weather overlay is active; rendering has a safe fallback.
@@ -110,4 +111,4 @@ export async function temperatureColor(temp){
   return scaleLinear().domain([-22,0,18,38]).range(['#538dc0','#a7cddd','#e8ae63','#bf6159']).clamp(true)(temp);
  }catch{return temp<=0?'#538dc0':temp>=30?'#bf6159':'#e8ae63'}
 }
-export function resetWeatherCache(){cache.clear()}
+export function resetWeatherCache(){cache.clear();weatherFlights.clear()}
