@@ -53,3 +53,28 @@ test('OSM API blocks arbitrary methods and never exposes upstream raw query inpu
  assert.equal(invalid.statusCode,400);
  assert.equal(invalid.body.elements,undefined);
 });
+
+
+test('Concurrent same-viewport map requests make one external Overpass call',async()=>{
+ const old=globalThis.fetch;
+ let resolveRequest,requests=0;
+ globalThis.fetch=async()=>{
+  requests++;
+  await new Promise(resolve=>{resolveRequest=resolve});
+  return {ok:true,json:async()=>({elements:[{type:'node',id:777,lat:49.001,lon:12.001,tags:{natural:'tree'}}]})};
+ };
+ try{
+  const req={url:'/api/osm?lat=49.001&lon=12.001&zoom=17&layers=trees',method:'GET'};
+  const first=fakeResponse(),second=fakeResponse(),third=fakeResponse();
+  const pending=[handler(req,first),handler(req,second),handler(req,third)];
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(requests,1);
+  resolveRequest();
+  await Promise.all(pending);
+  for(const res of [first,second,third]){
+   assert.equal(res.statusCode,200);
+   assert.equal(res.body.elements[0].id,777);
+  }
+  assert.equal(requests,1,'No duplicate shared-provider queries for three clients');
+ }finally{globalThis.fetch=old}
+});
