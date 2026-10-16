@@ -35,7 +35,7 @@ const bound=(x,min,max)=>Math.min(max,Math.max(min,x));
 const isCoord=x=>Number.isFinite(x)&&Math.abs(x)<=180;
 const cache=new Map();
 const canopyPolygon=(lon,lat,radiusMeters)=>{const latScale=radiusMeters/111320,lonScale=latScale/Math.max(.2,Math.cos(lat*Math.PI/180));const ring=[];for(let i=0;i<=10;i++){const a=i*Math.PI/5;ring.push([lon+Math.cos(a)*lonScale,lat+Math.sin(a)*latScale])}return [ring]};
-const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null};
+const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null};
 const providers=[
  {id:'airbnb',name:'Airbnb',url:(lat,lon)=>'https://www.airbnb.com/s/'+lat+','+lon+'/homes'},
  {id:'booking',name:'Booking',url:(lat,lon)=>'https://www.booking.com/searchresults.html?ss='+encodeURIComponent(lat+','+lon)},
@@ -48,13 +48,13 @@ function apiPopup(title,details='',photo=null){
  panel.replaceChildren();
  const head=document.createElement('div');head.className='explore-detail-head';
  const heading=document.createElement('strong');heading.textContent=title;
- const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','Закрыть карточку');close.addEventListener('click',()=>{state.selectEpoch++;panel.hidden=true;state.photoController?.abort()});
+ const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','Закрыть карточку');close.addEventListener('click',()=>{state.selectEpoch++;state.selectedFeature=null;panel.hidden=true;state.photoController?.abort()});
  head.append(heading,close);panel.append(head);
  const p=document.createElement('p');p.className='explore-sub';p.textContent=details;panel.append(p);
  if(photo){const img=document.createElement('img');img.className='explore-camera-image';img.src=photo;img.alt=title;img.referrerPolicy='no-referrer';img.loading='lazy';panel.append(img)}
 }
 function openDetail(feature){
- state.selectEpoch++;
+ state.selectEpoch++;state.selectedFeature=feature;
  const p=feature.properties||{},coordinates=feature.geometry?.coordinates||[];
  const lat=coordinates[1],lon=coordinates[0];
  if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
@@ -103,6 +103,29 @@ function openDetail(feature){
    a.append(img,s);photos.append(a);displayed++;if(displayed>=30)break;
   }
  }}).then(()=>{if(!ctl.signal.aborted&&!displayed)photos.textContent='Подтверждённых изображений рядом нет или сервисы недоступны'}).catch(()=>{if(!ctl.signal.aborted)photos.textContent='Фото временно недоступны'});
+}
+// A forecast time change updates the already open weather card in place;
+// do not require a second marker click (which can be covered by the mobile sheet).
+function updateWeatherCard(feature){
+ const panel=el('explore-detail');
+ if(!panel||panel.hidden||state.selectedFeature?.properties?._kind!=='weather'||!feature)return;
+ const p=feature.properties;
+ state.selectedFeature=feature;
+ const heading=panel.querySelector('.explore-detail-head strong');
+ if(heading)heading.textContent='Погода · '+feature.geometry.coordinates[1].toFixed(3)+'°, '+feature.geometry.coordinates[0].toFixed(3)+'°';
+ const subtitle=panel.querySelector('.explore-sub');
+ if(subtitle)subtitle.textContent='Модель Open-Meteo · '+(p.horizonHours?'прогноз +'+p.horizonHours+' ч':'текущие условия')+' · не измерение на месте';
+ const values={
+  'Температура':[p.temperature,'°C'],'Ощущается':[p.feels,'°C'],'Ветер':[p.wind,'км/ч'],
+  'Направление ветра':[p.windDirection,'° от севера'],'Осадки':[p.precipitation,'мм'],
+  'Облачность':[p.clouds,'%'],'Влажность':[p.humidity,'%'],'Давление':[p.pressure,'гПа']
+ };
+ for(const cell of panel.querySelectorAll('.explore-weather-cell')){
+  const key=cell.querySelector('small')?.textContent||'';
+  const [value,unit]=values[key]||[null,''];
+  cell.hidden=value===null||value===undefined||!Number.isFinite(Number(value));
+  if(!cell.hidden){const number=cell.querySelector('b');if(number)number.textContent=String(Math.round(Number(value)*10)/10)+' '+unit}
+ }
 }
 function categoryFor(tags){
  if(tags.highway==='traffic_signals')return'traffic';
@@ -324,6 +347,7 @@ async function load(){
   if(!current())return;
   state.weatherFeatures=coloured;state.weatherError=state.active.has('weather')&&coloured.length===0;
   void renderWindVectors();
+  if(coloured.length)updateWeatherCard(coloured[0]);
   const note=el('explore-weather-status');
   if(note){note.hidden=!state.active.has('weather');note.textContent=state.weatherError?'Нет данных на выбранный час':state.active.has('weather')?(state.weatherOffsetHours?'Прогноз +'+state.weatherOffsetHours+' ч':'Сейчас')+' · Open-Meteo · кеш 15 мин':''}
   draw();
