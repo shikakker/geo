@@ -23,11 +23,14 @@ export function createTTLCache({limit=32,ttlMs=4*60*1000,now=Date.now}={}){
  };
 }
 export function tileKey(center,zoom,layers){
- const z=Math.round(zoom);
- const precision=zoom>=17?3:2;
- const lat=Number(center.lat.toFixed(precision));
- const lon=Number(center.lng.toFixed(precision));
- return [z,lat,lon,[...layers].filter(id=>id!=='weather'&&id!=='cameras').sort().join(',')].join(':');
+ // Match the OSM API's 0.001° query centre AND its radius thresholds. The
+ // previous key rounded to 0.01°, causing objects queried for one block to be
+ // shown as if they covered another block hundreds of metres away.
+ const radiusTier=zoom>=17?'street':zoom>=15?'city':'district';
+ const lat=Number(Number(center.lat).toFixed(3));
+ const lon=Number(Number(center.lng).toFixed(3));
+ const kinds=[...layers].filter(id=>id!=='weather'&&id!=='cameras').sort().join(',');
+ return [radiusTier,lat,lon,kinds].join(':');
 }
 export function inViewport(feature,center,zoom){
  const [lon,lat]=feature.geometry?.coordinates||[];
