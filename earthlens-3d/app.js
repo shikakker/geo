@@ -5,6 +5,8 @@ import {preserveEarthLensOverlays} from './style-transition.js';
 import {mountSavedPlaces} from './saved-places-ui.js';
 import {readSetting,writeSetting} from './saved-places.js';
 import {attachPlaceSearch} from './geosearch-ui.js';
+import {mountProductHelp} from './product-help.js';
+import {version as APP_VERSION} from './package.json';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'leaflet/dist/leaflet.css';
@@ -513,6 +515,12 @@ function boot(){
   },
   notify:toast
  });
+ app.helpHub=mountProductHelp({
+  root:$('app'),toolbar:document.querySelector('.corner-toolbar'),
+  version:APP_VERSION
+ });
+ const buildVersion=$('build-version');
+ if(buildVersion){buildVersion.textContent='v'+APP_VERSION;buildVersion.title='Версия EarthLens 3D '+APP_VERSION}
  document.querySelectorAll('[data-lod]').forEach(button=>button.addEventListener('click',()=>selectLod(button.dataset.lod)));
  $('lod-debug').addEventListener('click',()=>{if(!app.lodTileset)return;app.lodDebug=!app.lodDebug;app.lodTileset.debugShowBoundingVolume=app.lodDebug;$('lod-debug').setAttribute('aria-pressed',String(app.lodDebug));app.viewer?.scene.requestRender()});
  paintLodButtons();
@@ -556,7 +564,13 @@ function boot(){
  $('reset-view').addEventListener('click',()=>{if(app.fallbackActive)return;app.map.easeTo({bearing:0,duration:500})});
  $('share').addEventListener('click',async()=>{storeCamera();try{await navigator.clipboard.writeText(location.href);toast('Ссылка на ракурс скопирована')}catch{toast('Адрес: '+location.href)}});
  $('exit-splat').addEventListener('click',exitScene);
- document.addEventListener('keydown',event=>{if(event.key==='Escape'&&app.activeScene)exitScene()});
+ document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&app.activeScene)exitScene();
+  if(event.key==='/'&&!event.ctrlKey&&!event.altKey&&!event.metaKey&&!document.getElementById('earthlens-help')?.open){
+   if(event.target?.closest?.('input,textarea,[contenteditable="true"]'))return;
+   event.preventDefault();$('search-text').focus();
+  }
+ });
  window.addEventListener('hashchange',()=>{if(app.activeScene||!app.map)return;app.map.jumpTo(parseHash())});
  // The recovery timer is armed before any external style request is made.
  app.bootTimer=setTimeout(()=>{if(!app.mapReady)void activateRasterFallback('Map style did not become ready within 12 seconds')},12000);
@@ -595,5 +609,5 @@ function boot(){
  }catch(err){console.error('MapLibre init:',err);void activateRasterFallback(err.message||'WebGL map initialization failed')}
 }
 // Inspectable, read-only diagnostics used by real Chromium rendering tests.
-window.__earthlensDiagnostics=()=>({engine:app.fallbackActive?'canvas-2.5d':app.mapReady?'webgl-3d':'initializing',buildings:app.renderedBuildings,zoom:app.map?.getZoom?.()??null,sceneCount:app.scenes.length,activeScene:app.activeScene?.id||null,sceneVisibleTiles:app.sceneVisibleTiles,lodMode:app.lodMode,lodSSE:app.lodTileset?.maximumScreenSpaceError??null,lonTokenConfigured:ION_PUBLIC_TOKEN.length>0,globe:app.globeActive,weatherWindLayer:Boolean(app.map?.getLayer?.('earthlens-weather-wind-vectors'))});
+window.__earthlensDiagnostics=()=>({engine:app.fallbackActive?'canvas-2.5d':app.mapReady?'webgl-3d':'initializing',buildings:app.renderedBuildings,zoom:app.map?.getZoom?.()??null,sceneCount:app.scenes.length,activeScene:app.activeScene?.id||null,sceneVisibleTiles:app.sceneVisibleTiles,lodMode:app.lodMode,lodSSE:app.lodTileset?.maximumScreenSpaceError??null,lonTokenConfigured:ION_PUBLIC_TOKEN.length>0,globe:app.globeActive,weatherWindLayer:Boolean(app.map?.getLayer?.('earthlens-weather-wind-vectors')),version:APP_VERSION,savedPlaces:app.placesHub?.store.count??0});
 try{boot()}catch(err){console.error(err);void activateRasterFallback(err.message||'Unexpected map bootstrap failure')}
