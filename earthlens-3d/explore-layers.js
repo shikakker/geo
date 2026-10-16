@@ -155,11 +155,12 @@ function drawTreeVolumes(features){
     'fill-extrusion-color':'#2d7650',
     'fill-extrusion-height':reduceMotion?['get','height']:0,
     'fill-extrusion-height-transition':{duration:reduceMotion?0:800,delay:0},
-    'fill-extrusion-base':['get','base'],
+    'fill-extrusion-base':reduceMotion?['get','base']:0,
+   'fill-extrusion-base-transition':{duration:reduceMotion?0:800,delay:0},
     'fill-extrusion-opacity':reduceMotion?.86:0,
     'fill-extrusion-opacity-transition':{duration:reduceMotion?0:900,delay:0}
    }},map.getStyle().layers.find(l=>l.type==='symbol')?.id);
-   requestAnimationFrame(()=>{if(map.getLayer(layer)){map.setPaintProperty(layer,'fill-extrusion-height',['get','height']);map.setPaintProperty(layer,'fill-extrusion-opacity',.86)}});
+   requestAnimationFrame(()=>{if(map.getLayer(layer)){map.setPaintProperty(layer,'fill-extrusion-base',['get','base']);map.setPaintProperty(layer,'fill-extrusion-height',['get','height']);map.setPaintProperty(layer,'fill-extrusion-opacity',.86)}});
   }
   map.setLayoutProperty(layer,'visibility',state.active.has('trees')?'visible':'none');
  }catch(error){console.debug('Tree geometry not supported in this style',error)}
@@ -278,6 +279,7 @@ function satellite(){
  const id='earthlens-imagery-satellite',provider='earthlens-world-imagery';
  const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
  try{
+  if(!state.imagery&&!map.getLayer(id)){el('explore-satellite').setAttribute('aria-pressed','false');return}
   if(!map.getSource(provider))map.addSource(provider,{type:'raster',tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],tileSize:256,attribution:'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community'});
   if(!map.getLayer(id))map.addLayer({id,type:'raster',source:provider,layout:{visibility:'none'},paint:{
    'raster-opacity':0,'raster-opacity-transition':{duration:reduced?0:800,delay:0},
