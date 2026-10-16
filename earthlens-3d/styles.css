@@ -269,3 +269,8 @@
 .explore-panel.collapsed #explore-weather-hours,.explore-panel.collapsed #explore-camera-status,.explore-panel.collapsed #explore-quality-status{display:none!important}
 #explore-collapse[aria-expanded="false"]{background:#b3e9c1;color:#1b3a25;border-radius:7px;min-width:30px;min-height:30px}
 @media(max-width:600px){.explore-panel.collapsed{left:9px;top:78px;padding:7px 9px;width:auto;max-height:none}.explore-panel.collapsed .explore-header{gap:9px}}
+
+#map-retry{border:1px solid #b9ecc4;border-radius:9px;background:#b7e5c1;color:#163424;padding:12px 20px;font-weight:800;font-size:12px;letter-spacing:0;box-shadow:0 8px 30px #0004}
+#map-retry[hidden]{display:none!important}
+#map-retry:hover{background:#dcffe2}
+@media(prefers-reduced-motion:reduce){.loading{transition:none!important}}
