@@ -58,7 +58,7 @@ test('Favorites handle disabled storage, corrupted JSON and subscribe without cr
  invalid.setItem(SAVED_PLACES_KEY,'broken');
  assert.equal(createSavedPlaces({storage:invalid}).count,0);
 });
-test('Saved map views reject corrupted fields and preserve privacy',()=>{
+test('Saved map views reject corrupted fields and preserve privacy',async()=>{
  assert.equal(normalizeSavedView({lat:NaN,lng:1}),null);
  assert.equal(normalizeSavedView({lat:1,lng:181}),null);
  const entry=normalizeSavedView({lat:0,lng:180,zoom:1,pitch:-20,bearing:-540,title:'<script>alert(1)</script>'},10);
