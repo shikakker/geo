@@ -164,23 +164,30 @@ function toFeature(item){
 }
 async function cameras(){
  if(!state.active.has('cameras'))return [];
- if(cache.has('fi-cameras')&&Date.now()-cache.get('fi-cameras').at<2*60*60*1000){
-  state.cameraStatus=cache.get('fi-cameras').data.length?'ready':'empty';
-  updateCameraStatus();
-  return cache.get('fi-cameras').data;
+ const cached=cache.get('fi-cameras');
+ if(cached&&Date.now()-cached.at<10*60*1000){
+  state.cameraStatus=cached.stale?'stale':cached.data.length?'ready':'empty';
+  updateCameraStatus();return cached.data;
  }
  try{
-  const response=await fetch('https://tie.digitraffic.fi/api/weathercam/v1/stations',{headers:{'Digitraffic-User':'EarthLens3D/0.4 project map (browser client)',Accept:'application/json'},signal:AbortSignal.timeout(8500)});
-  if(!response.ok)throw Error(response.status);
-  const data=await response.json();
-  const output=(data.features||[]).flatMap(f=>{
-   const [lon,lat]=f.geometry?.coordinates||[],p=f.properties||{},presets=p.presets||[],preset=presets.find(x=>x.inCollection!==false&&x.id);
-   if(!preset||!Number.isFinite(lon)||!Number.isFinite(lat))return [];
-   return [{type:'Feature',geometry:{type:'Point',coordinates:[lon,lat]},properties:{_kind:'cameras',name:p.name||'Камера '+p.id,_image:'https://weathercam.digitraffic.fi/'+encodeURIComponent(preset.id)+'.jpg',source:'Fintraffic Digitraffic'}}];
+  // Server filters provider station state, validates preset inCollection and
+  // caches metadata. Browser need not issue provider-specific CORS requests.
+  const response=await fetch('/api/cameras',{
+   headers:{Accept:'application/json'},
+   signal:AbortSignal.timeout(11000)
   });
-  cache.set('fi-cameras',{at:Date.now(),data:output});
-  state.cameraStatus=output.length?'ready':'empty';updateCameraStatus();return output;
- }catch(e){state.cameraStatus='offline';updateCameraStatus();console.debug('Traffic cameras offline',e);return []}
+  if(!response.ok)throw Error('Camera API HTTP '+response.status);
+  const data=await response.json();
+  const output=Array.isArray(data.features)?data.features:[];
+  const stale=data.stale===true;
+  cache.set('fi-cameras',{at:Date.now(),data:output,stale});
+  state.cameraStatus=stale?'stale':output.length?'ready':'empty';
+  updateCameraStatus();return output;
+ }catch(error){
+  state.cameraStatus='offline';updateCameraStatus();
+  console.debug('Traffic cameras unavailable',error);
+  return cached?.data||[];
+ }
 }
 function markerContent(kind){
  const defs={addresses:'⌂',trees:'♣',cameras:'▣',transport:'▰',traffic:'●',realty:'▤',weather:'☀'};
@@ -494,10 +501,11 @@ function updateCameraStatus(){
   idle:'Камеры · источник Финляндия (Fintraffic)',
   ready:'Камеры · снимки Fintraffic доступны в Финляндии',
   empty:'Камеры · у поставщика сейчас нет снимков',
+  stale:'Камеры · ранее полученные данные Fintraffic',
   offline:'Камеры · источник временно недоступен'
  };
  target.textContent=messages[state.cameraStatus]||messages.idle;
- target.classList.toggle('is-stale',state.cameraStatus==='offline');
+ target.classList.toggle('is-stale',state.cameraStatus==='offline'||state.cameraStatus==='stale');
 }
 function retryDataSources(){
  const now=Date.now();
