@@ -8,6 +8,7 @@ export const WEATHER_HORIZONS=Object.freeze([0,3,6,12]);
 const TTL=15*60*1000;
 const cache=new Map();
 const weatherFlights=createSingleFlight();
+const wrapLongitude=lon=>((lon+180)%360+360)%360-180;
 export function weatherSymbol(code){
  const value=Number(code);
  if(code===null||code===undefined||!Number.isFinite(value))return '◌';
@@ -28,14 +29,14 @@ export function weatherSamples(center,zoom){
  if(zoom<12)candidates.push([-1,-1],[1,-1],[-1,1],[1,1]);
  return candidates.map(([i,j])=>({
    lat:Math.max(-84,Math.min(84,base[0]+step*i)),
-   lon:Math.max(-179,Math.min(179,base[1]+step*j))
+   lon:Number(wrapLongitude(base[1]+step*j).toFixed(3))
  })).filter((p,i,all)=>all.findIndex(x=>x.lat===p.lat&&x.lon===p.lon)===i);
 }
 export function weatherRequest(samples){
  const p=new URLSearchParams({
   latitude:samples.map(x=>x.lat.toFixed(3)).join(','),
   longitude:samples.map(x=>x.lon.toFixed(3)).join(','),
-  current:CURRENT,hourly:CURRENT,timezone:'auto',forecast_days:'2'
+  current:CURRENT,hourly:CURRENT,timezone:'GMT',forecast_days:'2'
  });
  return API+'?'+p;
 }
@@ -44,7 +45,7 @@ export function forecastAt(record,hours=0){
  const hourly=record?.hourly;
  const times=hourly?.time;
  if(!Array.isArray(times)||!times.length)return null;
- const parse=t=>typeof t==='string'?Date.parse(t+(t.endsWith('Z')?'':'Z')):NaN;
+ const parse=t=>typeof t==='string'?Date.parse(/[Zz]$|[+-]\d{2}:?\d{2}$/.test(t)?t:t+'Z'):NaN;
  const anchor=parse(record?.current?.time||times[0]);
  if(!Number.isFinite(anchor))return null;
  const target=anchor+hours*3600*1000;
@@ -54,10 +55,11 @@ export function forecastAt(record,hours=0){
  for(const key of CURRENT.split(','))info[key]=Array.isArray(hourly[key])?hourly[key][index]:null;
  return info;
 }
-export function weatherFeatures(samples,raw,hours=0){
+export function weatherFeatures(samples,raw,hours=0,requestedSamples=samples){
  const values=Array.isArray(raw)?raw:[raw];
  return samples.flatMap((point,i)=>{
   const info=forecastAt(values[i],hours)||{};
+  const actual=requestedSamples[i]||point;
   const temp=Number(info.temperature_2m);
   if(info.temperature_2m===null||info.temperature_2m===undefined||!Number.isFinite(temp))return [];
   const num=value=>value===null||value===undefined||!Number.isFinite(Number(value))?null:Number(value);
@@ -72,6 +74,8 @@ export function weatherFeatures(samples,raw,hours=0){
     wind:num(info.wind_speed_10m),windDirection:num(info.wind_direction_10m),
     pressure:num(info.pressure_msl),weatherCode:num(info.weather_code),
     updated:String(info.time||''),horizonHours:hours,symbol:weatherSymbol(info.weather_code),
+    sampleLat:actual.lat,sampleLon:actual.lon,
+    approximate:Math.abs(actual.lat-point.lat)>0.00001||Math.abs(((actual.lon-point.lon+540)%360)-180)>0.00001,
     source:'Open-Meteo (model forecast)'
    }
   }];
@@ -85,24 +89,25 @@ export async function getWeatherForView({center,zoom,signal,offsetHours=0,fetche
  const precision=zoom>=12?2:zoom>=8?1:0;
  const key=[Math.round(zoom>=12?12:zoom>=10?10:zoom>=8?8:6),samples.length,Number(center.lat).toFixed(precision),Number(center.lng).toFixed(precision)].join(':');
  const hit=cache.get(key);
- if(hit&&Date.now()-hit.time<TTL)return weatherFeatures(samples,hit.raw,offsetHours);
+ if(hit&&Date.now()-hit.time<TTL)return weatherFeatures(samples,hit.raw,offsetHours,hit.samples);
  const url=weatherRequest(samples);
  // Multiple map callbacks requesting the same weather grid share one
  // transport; switching a forecast hour uses cached raw hourly data.
- const raw=await awaitWithSignal(weatherFlights.run(key,async()=>{
+ const stored=await awaitWithSignal(weatherFlights.run(key,async()=>{
   const existing=cache.get(key);
-  if(existing&&Date.now()-existing.time<TTL)return existing.raw;
+  if(existing&&Date.now()-existing.time<TTL)return existing;
   const response=await fetcher(url,{
    signal:AbortSignal.timeout(9500),headers:{Accept:'application/json'}
   });
   if(!response.ok)throw new Error('Weather API HTTP '+response.status);
   const data=await response.json();
-  cache.set(key,{time:Date.now(),raw:data});
+  const stored={time:Date.now(),raw:data,samples};
+  cache.set(key,stored);
   if(cache.size>24)cache.delete(cache.keys().next().value);
-  return data;
+  return stored;
  }),signal);
  if(signal?.aborted)throw new DOMException('Aborted','AbortError');
- return weatherFeatures(samples,raw,offsetHours);
+ return weatherFeatures(samples,stored.raw,offsetHours,stored.samples);
 }
 export async function temperatureColor(temp){
  // D3 is used only when the weather overlay is active; rendering has a safe fallback.
