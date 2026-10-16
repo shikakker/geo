@@ -3,6 +3,9 @@ import {getWeatherForView,temperatureColor,WEATHER_HORIZONS} from './weather-lay
 import {createTTLCache,featureKey,tileKey,withinMarkers} from './layer-runtime.js';
 import {GEO_ADDONS} from './geo-addons.js';
 import {GEO_ADDONS_NEXT} from './geo-addons-next.js';
+import {GEO_ADDONS_VISUAL} from './geo-addons-visual.js';
+import {createWindGeoJSON} from './weather-wind.js';
+import {nearestMappedFeature} from './places-nearby.js';
 import {createFrameQueue} from './progressive-render.js';
 import {warmSpatialAcceleration,visibleByDistance} from './spatial-acceleration.js';
 const THEMES=[
@@ -32,7 +35,7 @@ const bound=(x,min,max)=>Math.min(max,Math.max(min,x));
 const isCoord=x=>Number.isFinite(x)&&Math.abs(x)<=180;
 const cache=new Map();
 const canopyPolygon=(lon,lat,radiusMeters)=>{const latScale=radiusMeters/111320,lonScale=latScale/Math.max(.2,Math.cos(lat*Math.PI/180));const ring=[];for(let i=0;i<=10;i++){const a=i*Math.PI/5;ring.push([lon+Math.cos(a)*lonScale,lat+Math.sin(a)*latScale])}return [ring]};
-const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),frameQueue:createFrameQueue(),controller:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null};
+const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null};
 const providers=[
  {id:'airbnb',name:'Airbnb',url:(lat,lon)=>'https://www.airbnb.com/s/'+lat+','+lon+'/homes'},
  {id:'booking',name:'Booking',url:(lat,lon)=>'https://www.booking.com/searchresults.html?ss='+encodeURIComponent(lat+','+lon)},
@@ -60,9 +63,10 @@ function openDetail(feature){
  if(kind==='weather'){
    apiPopup('Погода · '+Number(lat).toFixed(3)+'°, '+Number(lon).toFixed(3)+'°', 'Модель Open-Meteo · '+(p.horizonHours?'прогноз +'+p.horizonHours+' ч':'текущие условия')+' · не измерение на месте');
    const details=document.createElement('div');details.className='explore-weather-grid';
-   const metrics=[['Температура',p.temperature,'°C'],['Ощущается',p.feels,'°C'],['Ветер',p.wind,'км/ч'],['Осадки',p.precipitation,'мм'],['Облачность',p.clouds,'%'],['Влажность',p.humidity,'%'],['Давление',p.pressure,'гПа']];
+   const metrics=[['Температура',p.temperature,'°C'],['Ощущается',p.feels,'°C'],['Ветер',p.wind,'км/ч'],['Направление ветра',p.windDirection,'° от севера'],['Осадки',p.precipitation,'мм'],['Облачность',p.clouds,'%'],['Влажность',p.humidity,'%'],['Давление',p.pressure,'гПа']];
    metrics.forEach(([key,value,unit])=>{if(value===null||value===undefined)return;const cell=document.createElement('div');cell.className='explore-weather-cell';const k=document.createElement('small');k.textContent=key;const v=document.createElement('b');v.textContent=String(Math.round(Number(value)*10)/10)+' '+unit;cell.append(k,v);details.append(cell)});
    el('explore-detail').append(details);
+   const windInfo=document.createElement('p');windInfo.className='explore-sub';windInfo.textContent='Линии ветра показывают направление, а не реальную траекторию перемещения воздуха.';el('explore-detail').append(windInfo);
    const credit=document.createElement('a');credit.className='explore-weather-credit';credit.href='https://open-meteo.com/';credit.target='_blank';credit.rel='noopener noreferrer';credit.textContent='Данные и условия © Open-Meteo ↗';el('explore-detail').append(credit);
    return;
  }
@@ -147,7 +151,7 @@ function clearMarkers(){
 function drawTreeVolumes(features){
  if(state.fallback||!state.map?.isStyleLoaded?.())return;
  const map=state.map,source='earthlens-tree-volumes',layer='earthlens-3d-tree-canopies';
- const treeFeatures=state.active.has('trees')?features.filter(f=>f.properties._kind==='trees'&&f.properties.natural==='tree').slice(0,280).map(f=>{const [lon,lat]=f.geometry.coordinates;const height=bound(Number(f.properties.height)||9,3,32),diameter=bound(Number(f.properties.diameter_crown)||5,2,20);return {type:'Feature',geometry:{type:'Polygon',coordinates:canopyPolygon(lon,lat,diameter/2)},properties:{height,base:height*.37}}}):[];
+ const treeFeatures=state.active.has('trees')?features.filter(f=>f.properties._kind==='trees'&&f.properties.natural==='tree').slice(0,state.quality==='smooth'?165:340).map(f=>{const [lon,lat]=f.geometry.coordinates;const height=bound(Number(f.properties.height)||9,3,32),diameter=bound(Number(f.properties.diameter_crown)||5,2,20);return {type:'Feature',geometry:{type:'Polygon',coordinates:canopyPolygon(lon,lat,diameter/2)},properties:{height,base:height*.37}}}):[];
  const geojson={type:'FeatureCollection',features:treeFeatures};
  try{
   if(map.getSource(source)){
@@ -176,7 +180,7 @@ function draw(){
  const all=[...state.features,...state.cameraFeatures,...state.weatherFeatures];
  const center=state.map.getCenter(),zoom=state.map.getZoom();
  const isSmall=window.innerWidth<600||navigator.deviceMemory&&navigator.deviceMemory<=4;
- const limit=state.fallback?95:isSmall?110:210;
+ const limit=state.fallback?(state.quality==='smooth'?70:120):isSmall?(state.quality==='smooth'?75:145):(state.quality==='smooth'?165:285);
  const eligible=all.filter(f=>state.active.has(f.properties._kind)&&(zoom>=13||f.properties._kind==='weather'));
  const target=visibleByDistance(eligible,center,zoom,limit);
  const visible=new Set(target.map(featureKey));
@@ -225,7 +229,29 @@ function draw(){
   state.markers=[...state.markerIndex.values()].map(entry=>entry.marker);
   const info=el('explore-count');
   if(info)info.textContent=target.length+' объектов на карте';
- },{batch:isSmall?12:26,budgetMs:6});
+ },{batch:state.quality==='smooth'?(isSmall?8:18):(isSmall?14:34),budgetMs:state.quality==='smooth'?4:7});
+}
+async function renderWindVectors(){
+ const map=state.map;
+ if(state.fallback||!map?.isStyleLoaded?.())return;
+ const sourceId='earthlens-weather-wind-source',layerId='earthlens-weather-wind-vectors';
+ const token=++state.windEpoch;
+ if(!state.active.has('weather')||!state.weatherFeatures.length){
+  if(map.getLayer(layerId))map.setLayoutProperty(layerId,'visibility','none');
+  return;
+ }
+ try{
+  const vectors=await createWindGeoJSON(state.weatherFeatures);
+  if(token!==state.windEpoch||!state.active.has('weather')||!state.map?.isStyleLoaded?.())return;
+  if(map.getSource(sourceId))map.getSource(sourceId).setData(vectors);
+  else map.addSource(sourceId,{type:'geojson',data:vectors});
+  if(!map.getLayer(layerId))map.addLayer({
+   id:layerId,type:'line',source:sourceId,minzoom:11,
+   layout:{'line-cap':'round','line-join':'round'},
+   paint:{'line-color':['get','color'],'line-width':2.7,'line-opacity':.76,'line-opacity-transition':{duration:650,delay:0}}
+  },map.getStyle().layers.find(layer=>layer.type==='symbol')?.id);
+  map.setLayoutProperty(layerId,'visibility','visible');
+ }catch(error){console.debug('Weather wind layer unavailable',error.message)}
 }
 async function load(){
  if(!state.map||!el('explore-panel'))return;
@@ -277,12 +303,14 @@ async function load(){
   })));
   if(!current())return;
   state.weatherFeatures=coloured;state.weatherError=state.active.has('weather')&&coloured.length===0;
+  void renderWindVectors();
   const note=el('explore-weather-status');
   if(note){note.hidden=!state.active.has('weather');note.textContent=state.weatherError?'Нет данных на выбранный час':state.active.has('weather')?(state.weatherOffsetHours?'Прогноз +'+state.weatherOffsetHours+' ч':'Сейчас')+' · Open-Meteo · кеш 15 мин':''}
   draw();
  }).catch(error=>{
   if(!current())return;
   state.weatherFeatures=[];state.weatherError=state.active.has('weather');
+  void renderWindVectors();
   const note=el('explore-weather-status');
   if(note){note.hidden=!state.active.has('weather');note.textContent='Погода временно недоступна'}
   if(state.weatherError)console.debug('Weather provider unavailable',error);
