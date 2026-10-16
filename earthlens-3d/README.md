@@ -236,3 +236,13 @@ The installer checks a 100-name allowlist, retrieves npm metadata, verifies a re
 **An open-source module does not provide unlimited public API calls.** Self-hosted library code has no per-request billing, but remote Overpass, Open-Meteo, imagery and camera providers impose their own licenses, quotas and uptime constraints. Open-Meteo's no-key access is noncommercial and quota-limited.
 
 Catalog availability and licenses are audited independently against npm metadata in GitHub Actions. Map correctness is checked with Node tests, Vite production builds and desktop/mobile Chromium.
+
+## EarthLens v0.8 — automatic quality and shared network requests
+
+**Auto rendering** is the new default overlay-quality preference. It chooses a low-cost profile on narrow screens, 4 GB-or-less memory devices, slow network connections and when Reduced Motion is enabled. On capable desktops it can show more detail. While the camera is moving, an opt-in, bounded frame sampler observes rendering FPS and applies a hysteresis threshold to change detail gradually; it stops completely on moveend/scene removal. It never overrides a manual `Плавно` or `Подробно` selection. An inline status shows the current effective setting.
+
+**Request coalescing** prevents concurrent identical viewport requests from reaching Open-Meteo or the same-origin Overpass proxy multiple times. Callers that move to another location can abort their own wait without aborting a weather transport shared by another caller. Shared transports have their own timeout. Cached hourly weather stays valid for 15 minutes; server OSM responses keep CDN and in-process caching plus a 1-hour fallback to previously fetched features when external Overpass is down.
+
+**Data provenance in the UI** distinguishes fresh geodata from a stale or unreachable provider. Existing 3D buildings and markers remain usable when upstream queries fail. The browser smoke verifies that an intentionally stale OSM payload still draws buildings, trees and addresses and shows the source warning.
+
+No additional API keys or subscriptions are introduced. Upstream Open-Meteo, Overpass, image providers and third-party scene hosts retain their independent quotas and terms.
