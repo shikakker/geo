@@ -38,7 +38,7 @@ const bound=(x,min,max)=>Math.min(max,Math.max(min,x));
 const isCoord=x=>Number.isFinite(x)&&Math.abs(x)<=180;
 const cache=new Map();
 const canopyPolygon=(lon,lat,radiusMeters)=>{const latScale=radiusMeters/111320,lonScale=latScale/Math.max(.2,Math.cos(lat*Math.PI/180));const ring=[];for(let i=0;i<=10;i++){const a=i*Math.PI/5;ring.push([lon+Math.cos(a)*lonScale,lat+Math.sin(a)*latScale])}return [ring]};
-const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',qualityPreference:'auto',qualityController:null,stopFpsSampling:null,selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),osmStatus:'idle',base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null,treeIndex:null,treeEpoch:0};
+const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),exitingMarkers:new Map(),drawRaf:null,frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',qualityPreference:'auto',qualityController:null,stopFpsSampling:null,selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),osmStatus:'idle',base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null,treeIndex:null,treeEpoch:0};
 const providers=[
  {id:'airbnb',name:'Airbnb',url:(lat,lon)=>'https://www.airbnb.com/s/'+lat+','+lon+'/homes'},
  {id:'booking',name:'Booking',url:(lat,lon)=>'https://www.booking.com/searchresults.html?ss='+encodeURIComponent(lat+','+lon)},
@@ -193,7 +193,13 @@ function paintWeatherMarker(root,props){
  root.style.backgroundColor=props._color||'#35647c';
 }
 function clearMarkers(){
+ if(state.drawRaf!==null){cancelAnimationFrame(state.drawRaf);state.drawRaf=null}
  state.frameQueue.cancel();
+ for(const entry of state.exitingMarkers.values()){
+  clearTimeout(entry.removalTimer);
+  try{entry.marker.remove()}catch{}
+ }
+ state.exitingMarkers.clear();
  for(const entry of state.markerIndex.values())try{entry.marker.remove()}catch{}
  state.markerIndex.clear();state.markers=[];
 }
@@ -258,7 +264,16 @@ function drawTreeVolumes(features){
   });
  }catch(error){console.debug('3D tree transition unavailable',error)}
 }
+// Multiple data sources often finish within one browser frame. Coalesce their
+// renders so a late source does not repeatedly cancel half-completed batches.
 function draw(){
+ if(!state.map||state.drawRaf!==null)return;
+ state.drawRaf=requestAnimationFrame(()=>{
+  state.drawRaf=null;
+  if(state.map)drawNow();
+ });
+}
+function drawNow(){
  if(!state.map)return;
  drawTreeVolumes(state.features);
  const all=[...state.features,...state.cameraFeatures,...state.weatherFeatures];
@@ -272,6 +287,15 @@ function draw(){
   if(!state.map)return;
   const kind=f.properties._kind,pos=f.geometry.coordinates,key=featureKey(f);
   let entry=state.markerIndex.get(key);
+  if(!entry&&state.exitingMarkers.has(key)){
+   entry=state.exitingMarkers.get(key);
+   state.exitingMarkers.delete(key);
+   clearTimeout(entry.removalTimer);
+   entry.removalTimer=null;
+   entry.element?.classList.remove('is-leaving');
+   if(entry.element)entry.element.style.pointerEvents='';
+   state.markerIndex.set(key,entry);
+  }
   if(entry){
    entry.feature=f;
    if(kind==='weather'){
@@ -308,7 +332,16 @@ function draw(){
    if(entry.element){entry.element.classList.add('is-leaving');entry.element.style.pointerEvents='none'}
    const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
    if(reduced)entry.marker.remove();
-   else setTimeout(()=>{try{entry.marker.remove()}catch{}},230);
+   else{
+    // A quick return to the same street should revive the existing marker,
+    // rather than creating another icon while an exit animation is pending.
+    state.exitingMarkers.set(key,entry);
+    entry.removalTimer=setTimeout(()=>{
+     if(state.exitingMarkers.get(key)!==entry)return;
+     state.exitingMarkers.delete(key);
+     try{entry.marker.remove()}catch{}
+    },230);
+   }
   }
   state.markers=[...state.markerIndex.values()].map(entry=>entry.marker);
   const info=el('explore-count');
