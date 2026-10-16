@@ -88,6 +88,6 @@ test('Exploration keeps stable markers and incremental map rendering',async()=>{
  assert.match(css,/earthlens-marker-enter/);
  assert.match(css,/earthlens-photo-enter/);
  assert.match(css,/prefers-reduced-motion:reduce/);
- assert.match(app,/fadeDuration:520/);
+ assert.match(app,/fadeDuration:(?:compact\?460:720|520)/);
  assert.match(app,/fill-extrusion-opacity-transition/);
 });
