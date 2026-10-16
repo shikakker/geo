@@ -382,7 +382,7 @@ function satellite(){
   if(!map.getLayer(id))map.addLayer({id,type:'raster',source:provider,layout:{visibility:'none'},paint:{
    'raster-opacity':0,'raster-opacity-transition':{duration:reduced?0:800,delay:0},
    'raster-fade-duration':reduced?0:350
-  }},map.getStyle().layers.find(x=>x.type==='symbol')?.id);
+  }},['earthlens-3d-buildings','earthlens-3d-tree-canopies','earthlens-weather-wind-vectors'].find(x=>map.getLayer(x))||map.getStyle().layers.find(x=>x.type==='symbol')?.id);
   if(state.imagery){
    map.setLayoutProperty(id,'visibility','visible');
    requestAnimationFrame(()=>{if(state.imagery&&map.getLayer(id))map.setPaintProperty(id,'raster-opacity',1)});
