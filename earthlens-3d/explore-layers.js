@@ -36,7 +36,7 @@ const bound=(x,min,max)=>Math.min(max,Math.max(min,x));
 const isCoord=x=>Number.isFinite(x)&&Math.abs(x)<=180;
 const cache=new Map();
 const canopyPolygon=(lon,lat,radiusMeters)=>{const latScale=radiusMeters/111320,lonScale=latScale/Math.max(.2,Math.cos(lat*Math.PI/180));const ring=[];for(let i=0;i<=10;i++){const a=i*Math.PI/5;ring.push([lon+Math.cos(a)*lonScale,lat+Math.sin(a)*latScale])}return [ring]};
-const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null};
+const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null,treeIndex:null,treeEpoch:0};
 const providers=[
  {id:'airbnb',name:'Airbnb',url:(lat,lon)=>'https://www.airbnb.com/s/'+lat+','+lon+'/homes'},
  {id:'booking',name:'Booking',url:(lat,lon)=>'https://www.booking.com/searchresults.html?ss='+encodeURIComponent(lat+','+lon)},
@@ -194,29 +194,64 @@ function clearMarkers(){
 }
 function drawTreeVolumes(features){
  if(state.fallback||!state.map?.isStyleLoaded?.())return;
- const map=state.map,source='earthlens-tree-volumes',layer='earthlens-3d-tree-canopies';
- const treeFeatures=state.active.has('trees')?features.filter(f=>f.properties._kind==='trees'&&f.properties.natural==='tree').slice(0,state.quality==='smooth'?165:340).map(f=>{const [lon,lat]=f.geometry.coordinates;const height=bound(Number(f.properties.height)||9,3,32),diameter=bound(Number(f.properties.diameter_crown)||5,2,20);return {type:'Feature',geometry:{type:'Polygon',coordinates:canopyPolygon(lon,lat,diameter/2)},properties:{height,base:height*.37}}}):[];
- const geojson={type:'FeatureCollection',features:treeFeatures};
+ const map=state.map,enabled=state.active.has('trees');
+ const sources=['earthlens-tree-volumes','earthlens-tree-volumes-swap'];
+ const layers=['earthlens-3d-tree-canopies','earthlens-3d-tree-canopies-swap'];
+ // Keep currently visible geometry while new 3D trees stream in; use two
+ // GeoJSON/extrusion buffers and crossfade instead of a one-frame setData swap.
+ const changed=state.lastTreeSource!==features||state.lastTreeEnabled!==enabled
+   ||(enabled&&!layers.some(id=>map.getLayer(id)));
+ if(!changed)return;
+ state.lastTreeSource=features;state.lastTreeEnabled=enabled;
+ if(!enabled){
+  ++state.treeEpoch;
+  layers.forEach(id=>{if(map.getLayer(id))map.setLayoutProperty(id,'visibility','none')});
+  return;
+ }
+ const limited=features.filter(f=>f.properties._kind==='trees'&&f.properties.natural==='tree')
+  .slice(0,state.quality==='smooth'?165:340);
+ const data={type:'FeatureCollection',features:limited.map(f=>{
+  const [lon,lat]=f.geometry.coordinates;
+  const height=bound(Number(f.properties.height)||9,3,32),diameter=bound(Number(f.properties.diameter_crown)||5,2,20);
+  return {type:'Feature',geometry:{type:'Polygon',coordinates:canopyPolygon(lon,lat,diameter/2)},
+   properties:{height,base:height*.37}};
+ })};
+ const oldIndex=state.treeIndex,newIndex=oldIndex===null?0:1-oldIndex;
+ const source=sources[newIndex],layer=layers[newIndex];
+ const reduceMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
+ const duration=reduceMotion?0:state.quality==='smooth'?880:600;
  try{
-  if(map.getSource(source)){
-   if(state.lastTreeSource!==features||state.lastTreeEnabled!==state.active.has('trees'))map.getSource(source).setData(geojson);
-  }else map.addSource(source,{type:'geojson',data:geojson});
-  state.lastTreeSource=features;state.lastTreeEnabled=state.active.has('trees');
-  if(!map.getLayer(layer)){
-   const reduceMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
-   map.addLayer({id:layer,type:'fill-extrusion',source,minzoom:14.4,paint:{
-    'fill-extrusion-color':'#2d7650',
-    'fill-extrusion-height':reduceMotion?['get','height']:0,
-    'fill-extrusion-height-transition':{duration:reduceMotion?0:800,delay:0},
-    'fill-extrusion-base':reduceMotion?['get','base']:0,
-   'fill-extrusion-base-transition':{duration:reduceMotion?0:800,delay:0},
-    'fill-extrusion-opacity':reduceMotion?.86:0,
-    'fill-extrusion-opacity-transition':{duration:reduceMotion?0:900,delay:0}
-   }},map.getStyle().layers.find(l=>l.type==='symbol')?.id);
-   requestAnimationFrame(()=>{if(map.getLayer(layer)){map.setPaintProperty(layer,'fill-extrusion-base',['get','base']);map.setPaintProperty(layer,'fill-extrusion-height',['get','height']);map.setPaintProperty(layer,'fill-extrusion-opacity',.86)}});
+  // The buffer being written is transparent BEFORE data changes, so large
+  // groups of newly mapped 3D trees never pop into view simultaneously.
+  if(map.getLayer(layer)){
+   map.setPaintProperty(layer,'fill-extrusion-opacity',0);
+   map.setLayoutProperty(layer,'visibility','visible');
   }
-  map.setLayoutProperty(layer,'visibility',state.active.has('trees')?'visible':'none');
- }catch(error){console.debug('Tree geometry not supported in this style',error)}
+  if(map.getSource(source))map.getSource(source).setData(data);
+  else map.addSource(source,{type:'geojson',data});
+  if(!map.getLayer(layer)){
+   map.addLayer({id:layer,type:'fill-extrusion',source,minzoom:14.4,
+    paint:{
+     'fill-extrusion-color':'#2d7650',
+     'fill-extrusion-height':reduceMotion?['get','height']:0,
+     'fill-extrusion-height-transition':{duration,delay:0},
+     'fill-extrusion-base':reduceMotion?['get','base']:0,
+     'fill-extrusion-base-transition':{duration,delay:0},
+     'fill-extrusion-opacity':0,
+     'fill-extrusion-opacity-transition':{duration,delay:0}
+    }},map.getStyle().layers.find(l=>l.type==='symbol')?.id);
+  }
+  const epoch=++state.treeEpoch;
+  state.treeIndex=newIndex;
+  requestAnimationFrame(()=>{
+   if(epoch!==state.treeEpoch||!map.getLayer(layer))return;
+   map.setPaintProperty(layer,'fill-extrusion-base',['get','base']);
+   map.setPaintProperty(layer,'fill-extrusion-height',['get','height']);
+   map.setPaintProperty(layer,'fill-extrusion-opacity',.86);
+   if(oldIndex!==null&&map.getLayer(layers[oldIndex]))
+    map.setPaintProperty(layers[oldIndex],'fill-extrusion-opacity',0);
+  });
+ }catch(error){console.debug('3D tree transition unavailable',error)}
 }
 function draw(){
  if(!state.map)return;
