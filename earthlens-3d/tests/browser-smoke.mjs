@@ -94,6 +94,16 @@ for (const {name,width,height,isMobile} of [
     await page.locator('.explore-addresses').first().waitFor({state:'visible',timeout:16000});
     await page.locator('.explore-trees').first().waitFor({state:'visible',timeout:16000});
     await page.screenshot({path:'screenshots/earthlens-'+name+'.png',animations:'disabled'});
+    // Verify the 100 opt-in libraries are searchable, not preloaded.
+    const market=page.locator('#explore-library-catalog');
+    assert.equal(await market.count(),1);
+    await market.evaluate(el=>{el.open=true});
+    await market.locator('input[type=search]').evaluate(el=>{
+      el.value='h3-js';el.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+    assert.equal(await market.locator('.explore-market-item').count(),1);
+    assert.match(await market.locator('.explore-market-item a').innerText(),/h3-js/);
+    await market.evaluate(el=>{el.open=false});
     // Weather must render without waiting for a slow/failed Overpass request.
     await page.locator('[data-explore-layer="weather"]').click();
     const marker=page.locator('.explore-weather').first();
@@ -108,6 +118,7 @@ for (const {name,width,height,isMobile} of [
     await detail.locator('.explore-weather-cell').first().waitFor({timeout:6000});
     assert.match(await detail.innerText(),/Open-Meteo/);
     assert.match(await detail.innerText(),/17.4/);
+    await page.waitForFunction(()=>document.querySelector('#explore-detail')?.innerText.includes('SunCalc'),null,{timeout:9000});
     assert.equal(await page.locator('#earthlens-stream-status').count(),1,'Map tile progress indicator must exist');
     await page.locator('[data-weather-hour="3"]').click();
     await page.waitForFunction(()=>[...document.querySelectorAll('.explore-weather')].some(el=>el.textContent.includes('22°')),null,{timeout:17000});
