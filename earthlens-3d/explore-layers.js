@@ -568,6 +568,18 @@ function buildPanel(){
  const aside=document.createElement('aside');aside.id='explore-panel';aside.className='explore-panel glass';
  aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник</button><span id="explore-count">Готово</span></div><p id="explore-weather-status" class="explore-licence" hidden></p><p id="explore-osm-status" class="explore-licence" role="status" aria-live="polite" hidden></p><p id="explore-camera-status" class="explore-licence" aria-live="polite" hidden></p><div class="explore-data-retry"><button id="explore-retry" type="button" title="Обновить данные активных слоёв">↻ Обновить данные</button><small id="explore-retry-status" aria-live="polite"></small></div><div class="explore-render-quality" role="group" aria-label="Качество отображения карты"><span>ОБЪЕКТЫ</span><button type="button" data-render-quality="auto" aria-pressed="true">Авто</button><button type="button" data-render-quality="smooth" aria-pressed="false">Плавно</button><button type="button" data-render-quality="detail" aria-pressed="false">Подробно</button><small id="explore-quality-status" aria-live="polite">Авто · плавно</small></div><details class="explore-oss"><summary>30 GIS-библиотек · 10 новых</summary><span>Подключаются по необходимости, без API-квот</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
  el('app').append(aside);
+ // Keep the actual map visible on phones. Layers are one tap away, not a
+ // permanent 160px sidebar covering much of the viewport.
+ const collapseButton=el('explore-collapse');
+ const syncCollapse=()=>{
+  const collapsed=aside.classList.contains('collapsed');
+  collapseButton.textContent=collapsed?'+':'−';
+  collapseButton.setAttribute('aria-expanded',String(!collapsed));
+  collapseButton.setAttribute('aria-label',collapsed?'Развернуть слои':'Свернуть слои');
+  collapseButton.title=collapsed?'Показать слои':'Скрыть слои';
+ };
+ if(window.matchMedia?.('(max-width:600px)').matches)aside.classList.add('collapsed');
+ syncCollapse();
  attachGeoCatalog(aside);
  const weatherHours=document.createElement('div');
  weatherHours.id='explore-weather-hours';weatherHours.className='explore-weather-hours';weatherHours.hidden=true;
@@ -585,7 +597,7 @@ function buildPanel(){
  aside.querySelectorAll('[data-weather-hour]').forEach(btn=>btn.addEventListener('click',()=>{const h=Number(btn.dataset.weatherHour);if(!WEATHER_HORIZONS.includes(h))return;state.weatherOffsetHours=h;updateToggles();schedule()}));
  aside.querySelectorAll('[data-render-quality]').forEach(btn=>btn.addEventListener('click',()=>{state.qualityController?.setPreference(btn.dataset.renderQuality)}));
  el('explore-retry').addEventListener('click',retryDataSources);
- el('explore-collapse').addEventListener('click',()=>{aside.classList.toggle('collapsed');el('explore-collapse').textContent=aside.classList.contains('collapsed')?'+':'−'});
+ collapseButton.addEventListener('click',()=>{aside.classList.toggle('collapsed');syncCollapse()});
  el('explore-satellite').addEventListener('click',()=>{if(state.fallback){alert('Спутниковый слой доступен в WebGL-режиме.');return}state.imagery=!state.imagery;satellite()});
 }
 function ensureAdaptiveQuality(){
