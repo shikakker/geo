@@ -22,6 +22,8 @@ export function preserveEarthLensOverlays(previous,incoming){
   }
   return true;
  });
+ // Satellite imagery must draw BELOW the buildings, trees and wind vectors.
+ preserved.sort((a,b)=>Number(a.id==='earthlens-imagery-satellite')*-1-Number(b.id==='earthlens-imagery-satellite')*-1);
  const insertion=nextLayers.findIndex(layer=>layer.type==='symbol');
  nextLayers.splice(insertion<0?nextLayers.length:insertion,0,...preserved);
  const result={...incoming,sources:nextSources,layers:nextLayers};
