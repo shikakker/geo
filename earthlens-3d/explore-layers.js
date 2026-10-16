@@ -1,4 +1,7 @@
-import {loadGeoPhotos,photoProviders,PHOTO_PROXIMITY_NOTICE} from './photo-sources.js';
+import {loadGeoPhotos,PHOTO_PROXIMITY_NOTICE} from './photo-sources.js';
+import {getWeatherForView,temperatureColor} from './weather-layer.js';
+import {createTTLCache,featureKey,tileKey,withinMarkers} from './layer-runtime.js';
+import {GEO_ADDONS} from './geo-addons.js';
 const OVERPASS='https://overpass.kumi.systems/api/interpreter';
 const THEMES=[
  {id:'addresses',name:'Адреса',symbol:'⌂',on:true},
@@ -6,7 +9,8 @@ const THEMES=[
  {id:'cameras',name:'Дорожные камеры',symbol:'▣',on:false},
  {id:'transport',name:'Автобусы и остановки',symbol:'▰',on:false},
  {id:'traffic',name:'Светофоры и дороги',symbol:'◉',on:false},
- {id:'realty',name:'Недвижимость',symbol:'⌗',on:false}
+ {id:'realty',name:'Недвижимость',symbol:'⌗',on:false},
+ {id:'weather',name:'Погода',symbol:'☀',on:false}
 ];
 const LIBRARIES=[
  ['@turf/turf','https://github.com/Turfjs/turf','Геоанализ и расстояния'],
@@ -26,7 +30,7 @@ const bound=(x,min,max)=>Math.min(max,Math.max(min,x));
 const isCoord=x=>Number.isFinite(x)&&Math.abs(x)<=180;
 const cache=new Map();
 const canopyPolygon=(lon,lat,radiusMeters)=>{const latScale=radiusMeters/111320,lonScale=latScale/Math.max(.2,Math.cos(lat*Math.PI/180));const ring=[];for(let i=0;i<=10;i++){const a=i*Math.PI/5;ring.push([lon+Math.cos(a)*lonScale,lat+Math.sin(a)*latScale])}return [ring]};
-const state={map:null,fallback:false,leaflet:null,L:null,markers:[],controller:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],base:'streets',imagery:false};
+const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),controller:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(THEMES.filter(t=>t.on).map(t=>t.id)),features:[],cameraFeatures:[],weatherFeatures:[],osmCache:createTTLCache({limit:28,ttlMs:240000}),base:'streets',imagery:false,weatherError:false,treeStyleEpoch:0};
 const providers=[
  {id:'airbnb',name:'Airbnb',url:(lat,lon)=>'https://www.airbnb.com/s/'+lat+','+lon+'/homes'},
  {id:'booking',name:'Booking',url:(lat,lon)=>'https://www.booking.com/searchresults.html?ss='+encodeURIComponent(lat+','+lon)},
@@ -50,6 +54,15 @@ function openDetail(feature){
  const label=p.name||p['addr:street']||p.description||'Место на карте';
  const title=p['addr:housenumber']&&p['addr:street']?p['addr:street']+', '+p['addr:housenumber']:label;
  const kind=p._kind||'Место';
+ if(kind==='weather'){
+   apiPopup('Погода · '+Number(lat).toFixed(3)+'°, '+Number(lon).toFixed(3)+'°', 'Модель Open-Meteo · прогноз текущих условий, не измерение на месте');
+   const details=document.createElement('div');details.className='explore-weather-grid';
+   const metrics=[['Температура',p.temperature,'°C'],['Ощущается',p.feels,'°C'],['Ветер',p.wind,'км/ч'],['Осадки',p.precipitation,'мм'],['Облачность',p.clouds,'%'],['Влажность',p.humidity,'%'],['Давление',p.pressure,'гПа']];
+   metrics.forEach(([key,value,unit])=>{if(value===null||value===undefined)return;const cell=document.createElement('div');cell.className='explore-weather-cell';const k=document.createElement('small');k.textContent=key;const v=document.createElement('b');v.textContent=String(Math.round(Number(value)*10)/10)+' '+unit;cell.append(k,v);details.append(cell)});
+   el('explore-detail').append(details);
+   const credit=document.createElement('a');credit.className='explore-weather-credit';credit.href='https://open-meteo.com/';credit.target='_blank';credit.rel='noopener noreferrer';credit.textContent='Данные и условия © Open-Meteo ↗';el('explore-detail').append(credit);
+   return;
+ }
  const note=kind==='cameras'?'Дорожная камера · снимок обновляется поставщиком; это не live-видео':kind==='traffic'?'Координаты дорожного объекта из OpenStreetMap':'Данные OpenStreetMap, точность и полнота зависят от региона';
  apiPopup(title,note);
  const panel=el('explore-detail');
@@ -120,46 +133,86 @@ async function cameras(){
  }catch(e){console.debug('Traffic cameras offline',e);return []}
 }
 function markerContent(kind){
- const defs={addresses:'⌂',trees:'♣',cameras:'▣',transport:'▰',traffic:'●',realty:'▤'};
+ const defs={addresses:'⌂',trees:'♣',cameras:'▣',transport:'▰',traffic:'●',realty:'▤',weather:'☀'};
  return defs[kind]||'•';
 }
 function clearMarkers(){
- for(const m of state.markers)try{m.remove()}catch{}
- state.markers=[];
+ for(const entry of state.markerIndex.values())try{entry.marker.remove()}catch{}
+ state.markerIndex.clear();state.markers=[];
 }
 function drawTreeVolumes(features){
  if(state.fallback||!state.map?.isStyleLoaded?.())return;
  const map=state.map,source='earthlens-tree-volumes',layer='earthlens-3d-tree-canopies';
- const treeFeatures=state.active.has('trees')?features.filter(f=>f.properties._kind==='trees'&&f.properties.natural==='tree').slice(0,420).map(f=>{const [lon,lat]=f.geometry.coordinates;const height=bound(Number(f.properties.height)||9,3,32),diameter=bound(Number(f.properties.diameter_crown)||5,2,20);return {type:'Feature',geometry:{type:'Polygon',coordinates:canopyPolygon(lon,lat,diameter/2)},properties:{height,base:height*.37}}}):[];
+ const treeFeatures=state.active.has('trees')?features.filter(f=>f.properties._kind==='trees'&&f.properties.natural==='tree').slice(0,280).map(f=>{const [lon,lat]=f.geometry.coordinates;const height=bound(Number(f.properties.height)||9,3,32),diameter=bound(Number(f.properties.diameter_crown)||5,2,20);return {type:'Feature',geometry:{type:'Polygon',coordinates:canopyPolygon(lon,lat,diameter/2)},properties:{height,base:height*.37}}}):[];
  const geojson={type:'FeatureCollection',features:treeFeatures};
  try{
   if(map.getSource(source))map.getSource(source).setData(geojson);
   else map.addSource(source,{type:'geojson',data:geojson});
-  if(!map.getLayer(layer))map.addLayer({id:layer,type:'fill-extrusion',source,minzoom:14.4,paint:{'fill-extrusion-color':'#2d7650','fill-extrusion-height':['get','height'],'fill-extrusion-base':['get','base'],'fill-extrusion-opacity':.86}},map.getStyle().layers.find(l=>l.type==='symbol')?.id);
+  if(!map.getLayer(layer)){
+   const reduceMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
+   map.addLayer({id:layer,type:'fill-extrusion',source,minzoom:14.4,paint:{
+    'fill-extrusion-color':'#2d7650',
+    'fill-extrusion-height':reduceMotion?['get','height']:0,
+    'fill-extrusion-height-transition':{duration:reduceMotion?0:800,delay:0},
+    'fill-extrusion-base':['get','base'],
+    'fill-extrusion-opacity':reduceMotion?.86:0,
+    'fill-extrusion-opacity-transition':{duration:reduceMotion?0:900,delay:0}
+   }},map.getStyle().layers.find(l=>l.type==='symbol')?.id);
+   requestAnimationFrame(()=>{if(map.getLayer(layer)){map.setPaintProperty(layer,'fill-extrusion-height',['get','height']);map.setPaintProperty(layer,'fill-extrusion-opacity',.86)}});
+  }
   map.setLayoutProperty(layer,'visibility',state.active.has('trees')?'visible':'none');
  }catch(error){console.debug('Tree geometry not supported in this style',error)}
 }
 function draw(){
  if(!state.map)return;
- clearMarkers();
- const all=[...state.features,...state.cameraFeatures];
+ const all=[...state.features,...state.cameraFeatures,...state.weatherFeatures];
  drawTreeVolumes(all);
- const center=state.map.getCenter(),limit=state.fallback?120:190,zoom=state.map.getZoom();
- if(zoom<13){el('explore-count').textContent='Приблизьте до 13+';return}
- const closest=all.filter(f=>state.active.has(f.properties._kind)).sort((a,b)=>{
-  const x=a.geometry.coordinates,y=b.geometry.coordinates,ca=(x[0]-center.lng)**2+(x[1]-center.lat)**2,cb=(y[0]-center.lng)**2+(y[1]-center.lat)**2;return ca-cb;
- }).slice(0,limit);
- for(const f of closest){
-  const kind=f.properties._kind,pos=f.geometry.coordinates;
-  const button=document.createElement('button');button.className='explore-marker explore-'+kind;button.type='button';button.textContent=markerContent(kind);button.title=f.properties.name+' · '+kind;button.setAttribute('aria-label',button.title);
-  button.addEventListener('click',event=>{event.stopPropagation();openDetail(f)});
+ const center=state.map.getCenter(),zoom=state.map.getZoom();
+ const isSmall=window.innerWidth<600||navigator.deviceMemory&&navigator.deviceMemory<=4;
+ const limit=state.fallback?95:isSmall?110:210;
+ const target=all.filter(f=>state.active.has(f.properties._kind)&&(zoom>=13||f.properties._kind==='weather')&&withinMarkers(f,center,zoom,f.properties._kind))
+  .sort((a,b)=>{const x=a.geometry.coordinates,y=b.geometry.coordinates;const ca=(x[0]-center.lng)**2+(x[1]-center.lat)**2,cb=(y[0]-center.lng)**2+(y[1]-center.lat)**2;return ca-cb})
+  .slice(0,limit);
+ const visible=new Set();
+ for(let i=0;i<target.length;i++){
+  const f=target[i],kind=f.properties._kind,pos=f.geometry.coordinates,key=featureKey(f);
+  visible.add(key);
+  let entry=state.markerIndex.get(key);
+  if(entry){
+   entry.feature=f;
+   if(kind==='weather'){entry.inner.textContent=f.properties.symbol+' '+Math.round(f.properties.temperature)+'°';entry.inner.style.backgroundColor=f.properties._color||'#35647c'}
+   continue;
+  }
+  const text=kind==='weather'?f.properties.symbol+' '+Math.round(f.properties.temperature)+'°':markerContent(kind);
+  const shell=document.createElement('div');shell.className='explore-marker-shell';
+  const button=document.createElement('button');button.className='explore-marker explore-'+kind;button.type='button';button.textContent=text;
+  button.title=f.properties.name+' · '+kind;button.setAttribute('aria-label',button.title);
+  if(kind==='weather')button.style.backgroundColor=f.properties._color||'#35647c';
+  shell.style.setProperty('--appear-delay',String(Math.min(i,16)*22)+'ms');
+  shell.append(button);
+  entry={marker:null,element:shell,inner:button,feature:f};
+  button.addEventListener('click',event=>{event.stopPropagation();openDetail(entry.feature)});
   if(state.fallback&&state.leaflet&&state.L){
-   const html='<span class="explore-marker explore-'+kind+'">'+markerContent(kind)+'</span>';
-   const icon=state.L.divIcon({html,className:'explore-leaflet',iconSize:[27,27],iconAnchor:[13,13]});
-   const m=state.L.marker([pos[1],pos[0]],{icon}).addTo(state.leaflet);m.on('click',()=>openDetail(f));state.markers.push(m);
-  }else if(state.maplibre){state.markers.push(new state.maplibre.Marker({element:button}).setLngLat(pos).addTo(state.map))}
+   const icon=state.L.divIcon({html:'<span class="explore-marker explore-'+kind+'">'+text+'</span>',className:'explore-leaflet explore-marker-shell',iconSize:[kind==='weather'?60:27,30],iconAnchor:[13,13]});
+   const marker=state.L.marker([pos[1],pos[0]],{icon}).addTo(state.leaflet);
+   marker.on('click',()=>openDetail(entry.feature));
+   entry.marker=marker;entry.element=marker.getElement()||shell;
+   entry.inner=entry.element.querySelector('.explore-marker')||button;
+   entry.element.style.setProperty('--appear-delay',String(Math.min(i,16)*22)+'ms');
+  }else if(state.maplibre)entry.marker=new state.maplibre.Marker({element:shell,anchor:'center'}).setLngLat(pos).addTo(state.map);
+  else continue;
+  state.markerIndex.set(key,entry);
  }
- el('explore-count').textContent=closest.length+' объектов на карте';
+ for(const [key,entry] of state.markerIndex){
+  if(visible.has(key))continue;
+  state.markerIndex.delete(key);
+  if(entry.element){entry.element.classList.add('is-leaving');entry.element.style.pointerEvents='none'}
+  const reduceMotion=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
+  if(reduceMotion)entry.marker.remove();
+  else setTimeout(()=>{try{entry.marker.remove()}catch{}},230);
+ }
+ state.markers=[...state.markerIndex.values()].map(entry=>entry.marker);
+ el('explore-count').textContent=target.length+' объектов на карте';
 }
 async function load(){
  if(!state.map||!el('explore-panel'))return;
