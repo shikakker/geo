@@ -4,6 +4,7 @@ import {createMapProgress,watchMapTiles} from './map-progress.js';
 import {preserveEarthLensOverlays} from './style-transition.js';
 import {mountSavedPlaces} from './saved-places-ui.js';
 import {readSetting,writeSetting} from './saved-places.js';
+import {attachPlaceSearch} from './geosearch-ui.js';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'leaflet/dist/leaflet.css';
@@ -394,7 +395,6 @@ function exitScene(){
   }
   updateGuidance();
 }
-async function placeSearch(event){event.preventDefault();const query=$('search-text').value.trim();if(query.length<2)return;if(Date.now()-app.geosearchAt<1200){toast('Немного подождите перед следующим поиском');return}app.geosearchAt=Date.now();const box=$('search-results');box.hidden=false;box.textContent='Поиск места…';try{const params=new URLSearchParams({format:'jsonv2',q:query,limit:'5'});const res=await fetch('https://nominatim.openstreetmap.org/search?'+params,{headers:{Accept:'application/json'}});if(!res.ok)throw Error('Nominatim '+res.status);const data=await res.json();box.textContent='';if(!data.length){box.textContent='Ничего не найдено';return}for(const item of data){const lat=Number(item.lat),lon=Number(item.lon);if(!Number.isFinite(lat)||!Number.isFinite(lon))continue;const b=document.createElement('button');b.type='button';b.className='search-option';b.textContent=item.display_name;b.addEventListener('click',()=>{if(app.activeScene)exitScene();box.hidden=true;$('search-text').value=item.display_name.split(',')[0];app.map.flyTo({center:[lon,lat],zoom:15.8,pitch:60,bearing:-12,duration:1900})});box.append(b)}}catch(err){console.warn(err);box.textContent='Поиск временно недоступен'}}
 function setTilt(){if(app.fallbackActive){toast('Резервная 2D-карта: для 3D необходим WebGL и векторный источник');return}app.userCamera3d=!app.userCamera3d;$('tilt').classList.toggle('active',app.userCamera3d);app.map.easeTo({pitch:app.userCamera3d?62:0,bearing:app.userCamera3d?-15:0,duration:650})}
 
 function cycleStyle(){
@@ -534,8 +534,22 @@ function boot(){
      app.map.flyTo({center:[lon,lat],zoom,pitch:66,bearing:-26,duration:2100});
    });
  });
- $('place-search').addEventListener('submit',placeSearch);
- $('search-text').addEventListener('keydown',e=>{if(e.key==='Escape')$('search-results').hidden=true});
+ app.geosearch=attachPlaceSearch({
+  form:$('place-search'),input:$('search-text'),box:$('search-results'),
+  onSelect:place=>{
+   if(app.activeScene)exitScene();
+   $('geo-card').hidden=true;
+   window.dispatchEvent(new CustomEvent('earthlens:place-selected',{
+    detail:{title:place.shortName,lat:place.lat,lon:place.lng}
+   }));
+   const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
+   app.map?.flyTo({
+    center:[place.lng,place.lat],zoom:place.zoom,
+    pitch:app.fallbackActive?0:place.zoom>=13?60:25,
+    bearing:app.fallbackActive?0:-12,duration:reduced?0:1400
+   });
+  }
+ });
  $('sample-fly').addEventListener('click',sampleFly);
  $('tilt').addEventListener('click',setTilt);
  $('style-cycle').addEventListener('click',cycleStyle);
