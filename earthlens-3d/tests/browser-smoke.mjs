@@ -94,6 +94,13 @@ for (const {name,width,height,isMobile} of [
     assert.ok(metrics.spinnerHidden,'Blocking spinner must be removed when map is ready');
     assert.ok(metrics.searchVisible,'Search must remain usable');
     assert.ok(metrics.searchButtonRight<=width+1,'Search submit button must fit inside viewport');
+    if(isMobile){
+      assert.match(await page.locator('#explore-panel').getAttribute('class'),/collapsed/,
+        'Map must be unobstructed when opened on a mobile phone');
+      assert.equal(await page.locator('#explore-collapse').getAttribute('aria-expanded'),'false');
+      await page.locator('#explore-collapse').click();
+      assert.equal(await page.locator('#explore-collapse').getAttribute('aria-expanded'),'true');
+    }
     assert.ok(!errors.some(x=>/does not provide an export named 'default'|Failed to resolve module specifier|SyntaxError/i.test(x)),
       'MapLibre import failed: '+errors.join(' | '));
     assert.match(await page.locator('#build-version').textContent(),/^v1\.0\.0-rc\.1$/);
