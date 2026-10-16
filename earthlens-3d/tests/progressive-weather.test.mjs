@@ -71,7 +71,7 @@ test('Exactly ten real permissive npm libraries, each a lazy importer',async()=>
  for(const addon of GEO_ADDONS){
   assert.equal(pkg.dependencies[addon.id==='distance'?'@turf/distance':addon.id==='bbox'?'@turf/bbox':addon.id==='point-in-polygon'?'@turf/boolean-point-in-polygon':addon.id==='easing'?'d3-ease':addon.id==='interpolate'?'d3-interpolate':addon.id==='array'?'d3-array':addon.id==='scale'?'d3-scale':addon.id],addon.version);
   assert.match(addon.url,/^https:\/\/github\.com\//);
-  assert.ok(['MIT','ISC'].includes(addon.license));
+  assert.ok(['MIT','ISC','BSD-3-Clause'].includes(addon.license));
   assert.equal(typeof addon.load,'function');
  }
 });
