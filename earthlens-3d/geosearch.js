@@ -5,7 +5,11 @@ export function suggestedZoom(boundingbox){
  if(!Array.isArray(boundingbox)||boundingbox.length<4)return 15.5;
  const [south,north,west,east]=boundingbox.map(Number);
  if(![south,north,west,east].every(Number.isFinite))return 15.5;
- const extent=Math.max(Math.abs(north-south),Math.abs(east-west));
+ // A geographic extent may straddle the antimeridian (179.9° -> -179.9°).
+ // Treat it as a short crossing, never as a 360-degree-wide country.
+ const rawLonSpan=Math.abs(east-west);
+ const lonSpan=rawLonSpan<=360?Math.min(rawLonSpan,360-rawLonSpan):360;
+ const extent=Math.max(Math.abs(north-south),lonSpan);
  if(extent>=45)return 3;
  if(extent>=8)return 5.5;
  if(extent>=1.5)return 8;
