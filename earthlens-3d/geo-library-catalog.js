@@ -58,7 +58,7 @@ export const GEO_LIBRARY_GROUPS=[
       "d3-delaunay",
       "d3-quadtree",
       "robust-predicates",
-      "geohash",
+      "latlon-geohash",
       "geokdbush"
     ]
   ],
