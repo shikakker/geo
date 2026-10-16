@@ -29,6 +29,9 @@ test('V1 release candidate has inspectable version and keyless stable modules',a
  assert.match(app,/attachPlaceSearch\(/);
  assert.match(app,/mountSavedPlaces\(/);
  assert.match(html,/id="build-version"/);
+ assert.match(html,/id="map-retry"/);
+ assert.match(app,/function showMapRecovery\(/);
+ assert.match(app,/showMapRecovery\('Сервер карт недоступен/);
  assert.match(html,/lang="ru"/);
  assert.match(html,/aria-label="Найти место"/);
  assert.match(app,/fallbackActive/);
