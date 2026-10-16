@@ -225,3 +225,11 @@
 }
 @media(max-width:540px){.saved-places-panel{right:50px;max-height:calc(100dvh - 170px);width:min(302px,calc(100vw - 59px))}.saved-places-list{max-height:34dvh}}
 @media(prefers-reduced-motion:reduce){.saved-places-panel *{transition:none!important;animation:none!important}}
+
+/* User-triggered search: visible provenance, loading and keyboard focus. */
+.search-pending,.search-error,.search-source{font-size:10px;line-height:1.5;padding:9px 12px;margin:0;color:#bfddc9}
+.search-error{color:#ffd3b4}
+.search-source{font-size:9px;color:#a3c4ad;border-top:1px solid #ffffff22}
+.search-results .search-option:focus-visible{outline:2px solid #bdf8cd;outline-offset:-3px;background:#31533a}
+.search-results[hidden]{display:none!important}
+@media(max-width:540px){.search-results{max-height:min(55dvh,340px)}.search-source{font-size:8px}}
