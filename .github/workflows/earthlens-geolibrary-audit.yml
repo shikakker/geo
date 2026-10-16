@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'earthlens-3d/geo-library-catalog.js'
+      - 'earthlens-3d/geo-library-catalog-extra.js'
+      - 'earthlens-3d/geo-library-combined.js'
       - 'earthlens-3d/scripts/verify-geolibrary-catalog.mjs'
       - '.github/workflows/earthlens-geolibrary-audit.yml'
   workflow_dispatch:
@@ -11,7 +13,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     defaults:
       run:
         working-directory: earthlens-3d
@@ -22,5 +24,5 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
-      - name: Verify 100 real published npm packages and licenses
+      - name: Verify 200 real published npm packages and licenses
         run: node scripts/verify-geolibrary-catalog.mjs
