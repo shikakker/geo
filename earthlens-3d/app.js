@@ -98,11 +98,13 @@ function initOpenBuildings(){
       'fill-extrusion-color':['interpolate',['linear'],height,0,'#b5c5b8',18,'#c5cabe',55,'#d9c7aa',135,'#e7c9a5',280,'#f3dcc2'],
       'fill-extrusion-height':['interpolate',['linear'],['zoom'],13.4,0,14.2,height],
       'fill-extrusion-base':['interpolate',['linear'],['zoom'],13.4,0,14.2,minHeight],
-      'fill-extrusion-opacity':0.94
+      'fill-extrusion-opacity':window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?0.94:0,
+      'fill-extrusion-opacity-transition':{duration:900,delay:0}
     }
   };
   try{
     map.addLayer(extrusions,before);
+    requestAnimationFrame(()=>{if(map.getLayer(id))map.setPaintProperty(id,'fill-extrusion-opacity',0.94)});
     // Hide duplicate 3D building layers only after the new layer succeeds.
     for(const layer of layers)if(layer.type==='fill-extrusion'&&layer['source-layer']==='building'&&layer.id!==id){
       try{map.setLayoutProperty(layer.id,'visibility','none')}catch{}
@@ -518,7 +520,7 @@ function boot(){
  app.bootTimer=setTimeout(()=>{if(!app.mapReady)void activateRasterFallback('Map style did not become ready within 12 seconds')},12000);
  if(!supportsWebGL2()){void activateRasterFallback('WebGL2 unavailable');return}
  try{
-   const map=new maplibregl.Map({container:'map',style:MAP_STYLE,...parseHash(),maxPitch:85,canvasContextAttributes:{antialias:true,preserveDrawingBuffer:false},attributionControl:false,hash:false});
+   const map=new maplibregl.Map({container:'map',style:MAP_STYLE,...parseHash(),maxPitch:85,fadeDuration:520,canvasContextAttributes:{antialias:true,preserveDrawingBuffer:false},attributionControl:false,hash:false});
    app.map=map;
    map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
    if(typeof maplibregl.GlobeControl==='function')map.addControl(new maplibregl.GlobeControl(),'top-right');
