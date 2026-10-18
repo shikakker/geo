@@ -484,9 +484,24 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
    refresh(force);
   }, delay);
  }
+ function ensureLayer(){
+  if(!enabled || !map.getLayer?.('earthlens-3d-buildings') ||
+     !map.isStyleLoaded?.()) return false;
+  if(!map.getLayer(SATELLITE_ROOF_LAYER_ID)){
+   const firstLabel=map.getStyle().layers.find(
+    item=>item.type==='symbol')?.id;
+   try{map.addLayer(layer,firstLabel);}
+   catch(error){console.warn('Satellite roof renderer:',error);return false;}
+  }
+  return true;
+ }
  const onMoveEnd = () => { idleAttempts = 0; schedule(); };
  const onIdle = () => {
-  if(enabled && roofCount === 0 && idleAttempts++ < 3)
+  if(!enabled)return;
+  // A new raster/DEM source can make isStyleLoaded() false just as the
+  // satellite toggle is activated. Idle retries the custom layer safely.
+  if(!map.getLayer?.(SATELLITE_ROOF_LAYER_ID))ensureLayer();
+  if(roofCount === 0 && idleAttempts++ < 3)
    schedule(true, 110);
  };
  map.on('moveend', onMoveEnd);
@@ -504,15 +519,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
    } else this.ensure();
   },
   ensure() {
-   if(!enabled || !map.isStyleLoaded?.() ||
-      !map.getLayer?.('earthlens-3d-buildings')) return;
-   if(!map.getLayer(SATELLITE_ROOF_LAYER_ID)) {
-    const firstLabel = map.getStyle().layers.find(
-     item => item.type === 'symbol')?.id;
-    try { map.addLayer(layer, firstLabel); }
-    catch(error) { console.warn('Satellite roof renderer:', error); return; }
-   }
-   schedule(true, 80);
+   if(ensureLayer())schedule(true, 80);
   },
   stats() {
    return {enabled, roofs:roofCount, atlases:entries.size,
