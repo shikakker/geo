@@ -639,7 +639,15 @@ export function initExploreLayers({map,maplibre=null,fallback=false,leaflet=null
  state.stopFpsSampling?.();state.stopFpsSampling=fallback?null:beginMoveFpsSampling(map,state.qualityController);
  buildPanel();
  map.on?.('moveend',()=>{draw();schedule()});
- if(!fallback)map.on?.('style.load',()=>{state.lastTreeSource=null;satellite();schedule()});
+ if(!fallback){
+  map.on?.('style.load',()=>{state.lastTreeSource=null;satellite();schedule()});
+  // Terrain and building sources added on the first map load make
+  // isStyleLoaded() temporarily false. Retry the default imagery on idle.
+  map.on?.('idle',()=>{
+   if(state.imagery&&!map.getLayer?.('earthlens-imagery-satellite'))satellite();
+  });
+  satellite();
+ }
  void warmSpatialAcceleration().then(()=>{if(state.map===map)draw()});
  schedule();
 }
