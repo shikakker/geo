@@ -25,8 +25,10 @@ await mkdir('screenshots',{recursive:true});
 try{
  const context=await browser.newContext({viewport:{width:1200,height:820},deviceScaleFactor:1});
  const page=await context.newPage();
- const errors=[];
+ const errors=[], logs=[], failedResponses=[];
  page.on('pageerror',err=>errors.push(err.message));
+ page.on('console',event=>{if(['warning','error'].includes(event.type()))logs.push(event.text().slice(0,220));});
+ page.on('response',response=>{if(response.status()>=400)failedResponses.push(response.status()+' '+response.url());});
  // Mock only satellite pixels. The real OpenFreeMap vector building/DEM data
  // and the real WebGL pipeline are still exercised.
  await page.route(url=>url.hostname==='server.arcgisonline.com'&&
@@ -35,13 +37,21 @@ try{
    headers:{'access-control-allow-origin':'*'},body:fixture}));
  await page.goto(base,{waitUntil:'domcontentloaded',timeout:28000});
  await page.locator('#loading.hidden').waitFor({timeout:38000});
- await page.waitForFunction(()=>{
-  const data=window.__earthlensDiagnostics?.();
-  return data?.buildings>0 && data?.satelliteRoofs?.enabled===true
-   && data?.satelliteRoofs?.roofs>0
-   && data?.satelliteRoofs?.ready>0
-   && data?.satelliteRoofs?.drawnTriangles>0;
- },null,{timeout:40000});
+ try {
+  await page.waitForFunction(()=>{
+   const data=window.__earthlensDiagnostics?.();
+   return data?.buildings>0 && data?.satelliteRoofs?.enabled===true
+    && data?.satelliteRoofs?.roofs>0
+    && data?.satelliteRoofs?.ready>0
+    && data?.satelliteRoofs?.drawnTriangles>0;
+  },null,{timeout:18000});
+ }catch(error){
+  const data=await page.evaluate(()=>window.__earthlensDiagnostics?.()||null);
+  await page.screenshot({path:'screenshots/earthlens-roofs-debug.png'}).catch(()=>{});
+  throw new Error('Textured roofs not ready: '+JSON.stringify({
+   diagnostics:data,errors,logs:logs.slice(-20),
+   failedResponses:failedResponses.slice(-10)}),{cause:error});
+ }
  const before=await page.evaluate(()=>window.__earthlensDiagnostics().satelliteRoofs);
  assert.ok(before.layer && before.roofs>0 && before.ready>0);
  await page.waitForTimeout(650);
