@@ -48,8 +48,8 @@ test('Height unknown/invalid does not make an unusable roof and matrix translati
 
 test('Large buildings use coarser but aligned photographic roof atlases',()=>{
  const wide=[[
-  [13.38,52.50],[13.43,52.50],[13.43,52.54],
-  [13.38,52.54],[13.38,52.50]
+  [13.39,52.515],[13.417,52.515],[13.417,52.525],
+  [13.39,52.525],[13.39,52.515]
  ]];
  const chosen=imageryAtlasForPolygon(wide,18,14);
  assert.ok(chosen,'should find an atlas for the full roof');
