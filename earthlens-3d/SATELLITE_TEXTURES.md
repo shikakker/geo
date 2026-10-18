@@ -7,10 +7,10 @@ This document describes the **implemented** roof-texture pipeline and its limits
 1. MapLibre GL JS displays OpenFreeMap street labels, OSM building footprints, and a Terrarium DEM.
 2. The **satellite mode starts enabled** unless the user previously disabled it; Esri World Imagery is drawn as a raster layer **below** OSM building extrusions and map labels.
 3. At zoom >= 15.2, `satellite-roofs.js` requests visible building polygons from the already loaded `earthlens-3d-buildings` layer. The polygons and heights come from OSM vector tiles; heights may be estimated.
-4. A geographic XYZ grid projects a clipped 4×4 satellite-tile atlas onto each eligible roof polygon. The atlas is shared between nearby buildings, with a guard border to avoid stretching imagery at tile seams.
+4. A geographic XYZ grid projects a 4×4 satellite-tile atlas onto each eligible roof polygon. The atlas is shared between nearby buildings, with a guard border. Large footprints automatically use a lower satellite zoom until all rooftop vertices fit, rather than stretching partial imagery.
 5. `earcut` triangulates roof polygons, including courtyards. Roof vertices retain Web-Mercator geometry and UV coordinates derived from their world coordinates, rather than an arbitrary repeating material.
 6. A custom MapLibre **3D** WebGL layer draws the texture on top of the extrusion roof and shares the map camera and depth buffer. Unsupported or untextured geometry keeps its ordinary 3D material.
-7. Atlas downloads are bounded, cancellable, and memory-only. The renderer releases buffers and textures when it is disabled, when the camera leaves an area, and during style changes.
+7. Atlas downloads are bounded, cancellable, and memory-only. A small bounded RAM-only LRU reuses satellite tiles when users revisit a block; it is cleared when satellite mode is disabled. GPU buffers and textures are released when no longer needed and on style changes. DEM tile completion triggers a debounced roof reprojection to follow terrain.
 8. If a valid georeferenced photogrammetry/3D Tiles scene loads, Cesium shows that genuine scene instead of fabricating photo textures.
 
 ## Coordinate and texture conventions
@@ -36,6 +36,6 @@ This document describes the **implemented** roof-texture pipeline and its limits
 - `npm run build`: production Vite build.
 - `node tests/browser-smoke.mjs`: desktop/mobile availability, real vector building volumes and UI.
 - `node tests/satellite-roofs-browser.mjs`: deterministic local satellite-tile **test fixture**, actual Chromium/WebGL roof drawing, and pixel-difference comparison with the roof layer temporarily disabled. The fixture is **test-only**; production always requests the configured real imagery provider.
-- Read-only live diagnostics: `window.__earthlensDiagnostics().satelliteRoofs` reports enabled state, triangulated roof count, atlas count, loaded atlases, rendering timestamp and drawn triangles.
+- Read-only live diagnostics: `window.__earthlensDiagnostics().satelliteRoofs` reports enabled state, triangulated roof count, atlas count, loaded/failed atlases, RAM atlas reuse, rendering timestamp and drawn triangles.
 
 Do not mark the textured roof feature production-verified merely because a build passes. Require the exact-head GitHub Actions browser test to pass and inspect the generated screenshot and live imagery terms at the published URL.

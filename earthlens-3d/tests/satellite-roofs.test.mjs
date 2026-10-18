@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {imageryTile,imageryAtlasFor,imageryUV,imageryURL,webMercator,
- roofHeight,triangulateSatelliteRoof,satelliteProjectionMatrix} from '../satellite-roofs.js';
+ roofHeight,triangulateSatelliteRoof,satelliteProjectionMatrix,
+ imageryAtlasForPolygon} from '../satellite-roofs.js';
 
 test('Web Mercator satellite coordinates align geographic positions and imagery XYZ',()=>{
  assert.deepEqual(webMercator(0,0),{x:.5,y:.5});
@@ -43,4 +44,26 @@ test('Height unknown/invalid does not make an unusable roof and matrix translati
  const matrix=satelliteProjectionMatrix(identity,{x:.4,y:.6});
  assert.equal(matrix[12],Math.fround(.4));
  assert.equal(matrix[13],Math.fround(.6));
+});
+
+test('Large buildings use coarser but aligned photographic roof atlases',()=>{
+ const wide=[[
+  [13.38,52.50],[13.43,52.50],[13.43,52.54],
+  [13.38,52.54],[13.38,52.50]
+ ]];
+ const chosen=imageryAtlasForPolygon(wide,18,14);
+ assert.ok(chosen,'should find an atlas for the full roof');
+ assert.ok(chosen.z<18,'do not stretch a partial imagery atlas');
+ for(const point of wide[0]){
+  const [u,v]=imageryUV(point[0],point[1],chosen);
+  assert.ok(u>=0&&u<=1&&v>=0&&v<=1);
+ }
+ const origin=webMercator(13.4,52.52);
+ const mesh=triangulateSatelliteRoof(wide,chosen,origin,15);
+ assert.ok(mesh&&mesh.length>0,'large roof remains photographic');
+ const huge=[[
+  [12.5,52],[14.5,52],[14.5,53],[12.5,53],[12.5,52]
+ ]];
+ assert.equal(imageryAtlasForPolygon(huge,18,14),null,
+  'a city-sized geometry must use the standard 3D material');
 });

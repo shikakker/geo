@@ -1,5 +1,5 @@
 import * as maplibregl from 'maplibre-gl';
-import {initExploreLayers,updateExploreMap,showExploreAt} from './explore-layers.js';
+import {initExploreLayers,updateExploreMap,showExploreAt,getExploreQuality} from './explore-layers.js';
 import {createMapProgress,watchMapTiles} from './map-progress.js';
 import {preserveEarthLensOverlays} from './style-transition.js';
 import {createSatelliteRoofProjection} from './satellite-roofs.js';
@@ -602,8 +602,9 @@ function boot(){
     attributionControl:false,hash:false
    });
    app.map=map;
-   app.satelliteRoofs=createSatelliteRoofProjection(map);
+   app.satelliteRoofs=createSatelliteRoofProjection(map,{getQuality:getExploreQuality});
    window.addEventListener('earthlens:satellite-changed',event=>app.satelliteRoofs?.setEnabled(event.detail?.enabled));
+   window.addEventListener('earthlens:quality-changed',()=>app.satelliteRoofs?.ensure());
    app.stopProgress=watchMapTiles(map,app.stream);
    map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
    if(typeof maplibregl.GlobeControl==='function')map.addControl(new maplibregl.GlobeControl(),'top-right');

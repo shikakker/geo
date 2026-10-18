@@ -1,4 +1,5 @@
 import {loadGeoPhotos,PHOTO_PROXIMITY_NOTICE} from './photo-sources.js';
+import {WORLD_IMAGERY_TILE_URL,WORLD_IMAGERY_ATTRIBUTION} from './satellite-roofs.js';
 import {getWeatherForView,temperatureColor,WEATHER_HORIZONS,resetWeatherCache} from './weather-layer.js';
 import {createTTLCache,featureKey,tileKey,withinMarkers} from './layer-runtime.js';
 import {GEO_ADDONS} from './geo-addons.js';
@@ -557,7 +558,7 @@ function satellite(){
  const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
  try{
   if(!state.imagery&&!map.getLayer(id)){el('explore-satellite').setAttribute('aria-pressed','false');return}
-  if(!map.getSource(provider))map.addSource(provider,{type:'raster',tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],tileSize:256,attribution:'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community'});
+  if(!map.getSource(provider))map.addSource(provider,{type:'raster',tiles:[WORLD_IMAGERY_TILE_URL],tileSize:256,attribution:WORLD_IMAGERY_ATTRIBUTION});
   if(!map.getLayer(id))map.addLayer({id,type:'raster',source:provider,layout:{visibility:'none'},paint:{
    'raster-opacity':0,'raster-opacity-transition':{duration:reduced?0:800,delay:0},
    'raster-fade-duration':reduced?0:350
@@ -627,12 +628,15 @@ function ensureAdaptiveQuality(){
    draw();
   }
   updateToggles();
+  window.dispatchEvent(new CustomEvent('earthlens:quality-changed',
+   {detail:{quality:effective}}));
  }});
  const savedMode=restoredQuality();
  if(savedMode!=='auto')state.qualityController.setPreference(savedMode);
  state.quality=state.qualityController.effective;
  state.qualityPreference=state.qualityController.preference;
 }
+export function getExploreQuality(){return state.quality}
 export function initExploreLayers({map,maplibre=null,fallback=false,leaflet=null,L=null}){
  state.map=map;state.maplibre=maplibre;state.fallback=fallback;state.leaflet=leaflet;state.L=L;
  ensureAdaptiveQuality();

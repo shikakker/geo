@@ -39,6 +39,25 @@ export function imageryAtlasFor(lon, lat, zoom) {
  return {x, y, z: tile.z, key: tile.z + '/' + x + '/' + y};
 }
 
+// Choose the sharpest atlas containing the entire footprint, including holes.
+export function imageryAtlasForPolygon(rings, zoom, minZoom=14) {
+ const center=polygonCenter(rings);
+ if(!center||!Array.isArray(rings))return null;
+ const top=clamp(Math.floor(zoom),0,20);
+ const floor=clamp(Math.floor(minZoom),0,top);
+ for(let z=top;z>=floor;z--){
+  const atlas=imageryAtlasFor(center.lon,center.lat,z);
+  const fits=rings.every(ring=>Array.isArray(ring)&&ring.every(point=>{
+   if(!Array.isArray(point)||!Number.isFinite(point[0])||
+      !Number.isFinite(point[1]))return false;
+   const [u,v]=imageryUV(point[0],point[1],atlas);
+   return u>=0&&u<=1&&v>=0&&v<=1;
+  }));
+  if(fits)return atlas;
+ }
+ return null;
+}
+
 export function imageryUV(lon, lat, atlas) {
  const tile = imageryTile(lon, lat, atlas.z);
  return [(tile.x - atlas.x) / ATLAS_TILES,
@@ -241,6 +260,10 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
  const maxAtlases = mobile ? 2 : 4;
  const maxRoofs = mobile ? 100 : 280;
  const maxConcurrent = mobile ? 1 : 2;
+ // Small, memory-only LRU smooths camera reversals without refetching the
+ // same 16 XYZ tiles. No disk archive or persistent imagery storage.
+ const atlasCache=new Map(), maxCachedAtlases=mobile?2:4;
+ let atlasCacheHits=0, terrainRefreshAt=0;
  const layer = {
   id: SATELLITE_ROOF_LAYER_ID,
   type: 'custom',
@@ -279,7 +302,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
    gl.depthFunc(gl.LEQUAL);
    gl.depthMask(false);
    gl.enable(gl.BLEND);
-   gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+   gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
    gl.disable(gl.CULL_FACE);
    gl.enable(gl.POLYGON_OFFSET_FILL);
    gl.polygonOffset(-1,-1);
@@ -357,8 +380,16 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
   groups = new Map();
  }
 
+ function rememberAtlas(item){
+  if(!item.canvas||item.failed)return;
+  atlasCache.delete(item.key);
+  atlasCache.set(item.key,item.canvas);
+  while(atlasCache.size>maxCachedAtlases)
+   atlasCache.delete(atlasCache.keys().next().value);
+ }
  function releaseAtlas(item) {
   item.controller?.abort();
+  rememberAtlas(item);
   if(item.texture && glContext) glContext.deleteTexture(item.texture);
   item.texture = null;
   item.canvas = null;
@@ -373,6 +404,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
   queue.length = 0;
   discardGroups();
   roofCount = 0; lastView = '';
+  atlasCache.clear();
  }
 
  function pump() {
@@ -409,10 +441,12 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
    if(!keys.has(entry.key)) releaseAtlas(entry);
   for(const [key, atlas] of desired) {
    if(!entries.has(key)) {
-    const entry = {...atlas, canvas:null, texture:null, controller:null,
-     failed:false, readyAt:0};
+    const canvas=atlasCache.get(key)||null;
+    if(canvas){atlasCache.delete(key);atlasCacheHits++;}
+    const entry = {...atlas, canvas, texture:null, controller:null,
+     failed:false, readyAt:canvas?performance.now()-650:0};
     entries.set(key, entry);
-    queue.push(entry);
+    if(!canvas)queue.push(entry);
    }
   }
   pump();
@@ -453,8 +487,8 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
      polygon[0]?.length].join(':');
     if(seen.has(signature)) continue;
     seen.add(signature);
-    const atlas = imageryAtlasFor(centerPoint.lon, centerPoint.lat,
-     tileZoom);
+    const atlas = imageryAtlasForPolygon(polygon,tileZoom,14);
+    if(!atlas)continue;
     const dx = ((centerPoint.lon - center.lng + 540) % 360) - 180;
     const dy = centerPoint.lat - center.lat;
     const distance = dx * dx * Math.cos(center.lat * RAD) ** 2 +
@@ -519,6 +553,16 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
   return true;
  }
  const onMoveEnd = () => { idleAttempts = 0; schedule(); };
+ const onTerrainData = event => {
+  if(!enabled||event?.sourceId!=='earthlens-elevation'||
+     !event.isSourceLoaded||map.getZoom()<MIN_ZOOM)return;
+  const now=performance.now();
+  if(now-terrainRefreshAt<1500)return;
+  terrainRefreshAt=now;
+  // DEM tiles can finish AFTER the first building mesh. Resnap the roofs
+  // when elevation becomes available, without creating a repaint loop.
+  schedule(true,260);
+ };
  const onIdle = () => {
   if(!enabled)return;
   // A new raster/DEM source can make isStyleLoaded() false just as the
@@ -529,6 +573,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
  };
  map.on('moveend', onMoveEnd);
  map.on('idle', onIdle);
+ map.on('sourcedata',onTerrainData);
 
  return {
   setEnabled(next) {
@@ -546,14 +591,17 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
   },
   stats() {
    return {enabled, roofs:roofCount, atlases:entries.size,
-    lastRenderAt, drawnTriangles,
+    lastRenderAt, drawnTriangles,cacheHits:atlasCacheHits,
     ready:[...entries.values()].filter(entry => entry.canvas).length,
-    loading:activeLoads, layer:Boolean(map.getLayer?.(SATELLITE_ROOF_LAYER_ID))};
+    loading:activeLoads,
+    failed:[...entries.values()].filter(entry=>entry.failed).length,
+    layer:Boolean(map.getLayer?.(SATELLITE_ROOF_LAYER_ID))};
   },
   destroy() {
    enabled = false;
    map.off?.('moveend', onMoveEnd);
    map.off?.('idle', onIdle);
+   map.off?.('sourcedata',onTerrainData);
    if(map.getLayer?.(SATELLITE_ROOF_LAYER_ID))
     map.removeLayer(SATELLITE_ROOF_LAYER_ID);
    clearAll();
