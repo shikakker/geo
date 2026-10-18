@@ -280,10 +280,12 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER,
       gl.LINEAR_MIPMAP_LINEAR);
      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+     // XYZ tile rows run north-to-south, unlike WebGL texture V. Flip during upload.
+     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,
       gl.UNSIGNED_BYTE, atlas.canvas);
      gl.generateMipmap(gl.TEXTURE_2D);
+     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
      atlas.texture = texture;
     }
     if(!group.buffer) {
