@@ -2,6 +2,7 @@ import * as maplibregl from 'maplibre-gl';
 import {initExploreLayers,updateExploreMap,showExploreAt} from './explore-layers.js';
 import {createMapProgress,watchMapTiles} from './map-progress.js';
 import {preserveEarthLensOverlays} from './style-transition.js';
+import {createSatelliteRoofProjection} from './satellite-roofs.js';
 import {mountSavedPlaces} from './saved-places-ui.js';
 import {readSetting,writeSetting} from './saved-places.js';
 import {attachPlaceSearch} from './geosearch-ui.js';
@@ -31,7 +32,7 @@ const CESIUM_JS = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VER
 const CESIUM_CSS = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VERSION + '/Build/Cesium/Widgets/widgets.css';
 // Midtown is deliberately the starting point: 3D skyscrapers are unmistakable.
 const defaultView = { center: [-73.9853, 40.7487], zoom: 16.35, pitch: 67, bearing: -24 };
-const app = { map:null, scenes:[], marker:[], terrainAdded:false, is3d:true, activeScene:null, sceneLoading:null, sceneEpoch:0, cesium:null, viewer:null, splatControl:null, splatIds:new Set(), photoRequest:0, geosearchAt:0, tiltInProgress:false, userCamera3d:true, pendingToken:0, fallbackActive:false, fallbackStarting:false, leaflet:null, leafletLib:null, mapReady:false, bootTimer:null, styleIndex:0, tileErrors:0, sceneDataLoaded:false, cityMode:'osm-3d', canvasBuildings:null, globeActive:false, renderedBuildings:0, failedScenes:new Map(), sceneCooldownUntil:0, sceneEntry:null, sceneVisibleTiles:0, lodMode:isLodMode(readSetting('earthlens:lod'))?readSetting('earthlens:lod'):'auto',placesHub:null, lodTileset:null, lodProgress:{pending:0,processing:0}, lodSource:null, lodDebug:false };
+const app = { map:null, scenes:[], marker:[], terrainAdded:false, is3d:true, activeScene:null, sceneLoading:null, sceneEpoch:0, cesium:null, viewer:null, splatControl:null, splatIds:new Set(), photoRequest:0, geosearchAt:0, tiltInProgress:false, userCamera3d:true, pendingToken:0, satelliteRoofs:null, fallbackActive:false, fallbackStarting:false, leaflet:null, leafletLib:null, mapReady:false, bootTimer:null, styleIndex:0, tileErrors:0, sceneDataLoaded:false, cityMode:'osm-3d', canvasBuildings:null, globeActive:false, renderedBuildings:0, failedScenes:new Map(), sceneCooldownUntil:0, sceneEntry:null, sceneVisibleTiles:0, lodMode:isLodMode(readSetting('earthlens:lod'))?readSetting('earthlens:lod'):'auto',placesHub:null, lodTileset:null, lodProgress:{pending:0,processing:0}, lodSource:null, lodDebug:false };
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
 const fmt=n=>Number(n).toFixed(4);
 const escapeHtml=v=>String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -144,7 +145,7 @@ function updateBuildingStatistics(){
   }catch(error){console.warn('3D stats:',error)}
 }
 function initTerrain(){const m=app.map;if(!m.isStyleLoaded())return;try{if(!m.getSource('earthlens-elevation'))m.addSource('earthlens-elevation',{type:'raster-dem',tiles:[DEM_URL],tileSize:256,maxzoom:14,encoding:'terrarium',attribution:'Elevation © AWS Terrain Tiles / Mapzen'});m.setTerrain({source:'earthlens-elevation',exaggeration:1.15})}catch(err){console.warn('Terrain unavailable in this browser:',err)}}
-function styleLoaded(){initOpenBuildings();initTerrain();updateProjection()}
+function styleLoaded(){initOpenBuildings();initTerrain();updateProjection();app.satelliteRoofs?.ensure()}
 function maybeTilt(){if(app.tiltInProgress||!app.userCamera3d||app.activeScene||app.sceneLoading)return;const m=app.map,z=m.getZoom();if(z>=14.4&&m.getPitch()<35){app.tiltInProgress=true;m.easeTo({pitch:60,duration:620});setTimeout(()=>app.tiltInProgress=false,700)}else if(z<11.6&&m.getPitch()>24){app.tiltInProgress=true;m.easeTo({pitch:0,duration:620});setTimeout(()=>app.tiltInProgress=false,700)}}
 function cameraMoved(){window.dispatchEvent(new Event('earthlens:camera-moved'));showPosition();storeCamera();updateGuidance();updateProjection();updateBuildingStatistics();maybeTilt();if(app.sceneLoading){const nearest=locateNearestScene();if(!nearest||nearest.id!==app.sceneLoading.id){app.sceneEpoch++;app.sceneLoading=null;cleanBanner()}return}const chosen=locateNearestScene();if(chosen)void enterScene(chosen)}
 function sampleFly(){const scene=app.scenes[0];if(!scene){toast('Геопривязанных Gaussian-сцен пока нет');return}app.sceneCooldownUntil=0;app.failedScenes.delete(scene.id);app.map.flyTo({center:[scene.longitude,scene.latitude],zoom:scene.activationZoom+0.15,pitch:63,bearing:-15,duration:2000});toast('Приблизьте ещё на один шаг: KHR-скан загрузится автоматически')}
@@ -441,6 +442,7 @@ async function activateRasterFallback(reason){
    showMapRecovery('Карта недоступна. Проверьте интернет и повторите загрузку.');
    app.fallbackStarting=false;return;
  }
+ app.satelliteRoofs?.destroy();app.satelliteRoofs=null;
  try{app.map?.remove?.()}catch(err){console.warn('Map cleanup',err)}
  $('map').replaceChildren();
  const raster=L.map('map',{zoomControl:false,attributionControl:true,minZoom:2,maxZoom:19,worldCopyJump:true,preferCanvas:true});
@@ -597,6 +599,8 @@ function boot(){
     attributionControl:false,hash:false
    });
    app.map=map;
+   app.satelliteRoofs=createSatelliteRoofProjection(map);
+   window.addEventListener('earthlens:satellite-changed',event=>app.satelliteRoofs?.setEnabled(event.detail?.enabled));
    app.stopProgress=watchMapTiles(map,app.stream);
    map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
    if(typeof maplibregl.GlobeControl==='function')map.addControl(new maplibregl.GlobeControl(),'top-right');
@@ -619,5 +623,5 @@ function boot(){
  }catch(err){console.error('MapLibre init:',err);void activateRasterFallback(err.message||'WebGL map initialization failed')}
 }
 // Inspectable, read-only diagnostics used by real Chromium rendering tests.
-window.__earthlensDiagnostics=()=>({engine:app.fallbackActive?'canvas-2.5d':app.mapReady?'webgl-3d':'initializing',buildings:app.renderedBuildings,zoom:app.map?.getZoom?.()??null,sceneCount:app.scenes.length,activeScene:app.activeScene?.id||null,sceneVisibleTiles:app.sceneVisibleTiles,lodMode:app.lodMode,lodSSE:app.lodTileset?.maximumScreenSpaceError??null,lonTokenConfigured:ION_PUBLIC_TOKEN.length>0,globe:app.globeActive,weatherWindLayer:Boolean(app.map?.getLayer?.('earthlens-weather-wind-vectors')),version:APP_VERSION,savedPlaces:app.placesHub?.store.count??0});
+window.__earthlensDiagnostics=()=>({engine:app.fallbackActive?'canvas-2.5d':app.mapReady?'webgl-3d':'initializing',buildings:app.renderedBuildings,zoom:app.map?.getZoom?.()??null,sceneCount:app.scenes.length,activeScene:app.activeScene?.id||null,sceneVisibleTiles:app.sceneVisibleTiles,lodMode:app.lodMode,lodSSE:app.lodTileset?.maximumScreenSpaceError??null,lonTokenConfigured:ION_PUBLIC_TOKEN.length>0,globe:app.globeActive,satelliteRoofs:app.satelliteRoofs?.stats()||null,weatherWindLayer:Boolean(app.map?.getLayer?.('earthlens-weather-wind-vectors')),version:APP_VERSION,savedPlaces:app.placesHub?.store.count??0});
 try{boot()}catch(err){console.error(err);void activateRasterFallback(err.message||'Unexpected map bootstrap failure')}
