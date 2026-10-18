@@ -233,6 +233,7 @@ function onSmallDevice() {
 export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = {}) {
  let enabled = false, program = null, glContext = null, scheduleTimer = null;
  let activeLoads = 0, lastView = '', roofCount = 0, idleAttempts = 0;
+ let lastRenderAt = 0, drawnTriangles = 0;
  let origin = {x:0, y:0}, groups = new Map(), atlasEpoch = 0;
  const entries = new Map(), queue = [];
  const mobile = onSmallDevice();
@@ -280,8 +281,9 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER,
       gl.LINEAR_MIPMAP_LINEAR);
      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-     // XYZ tile rows run north-to-south, unlike WebGL texture V. Flip during upload.
-     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+     // The UV convention is north=0, south=1 (XYZ). Canvas texImage2D
+     // with UNPACK_FLIP_Y_WEBGL=false maps its top row to v=0.
+     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,
       gl.UNSIGNED_BYTE, atlas.canvas);
      gl.generateMipmap(gl.TEXTURE_2D);
@@ -305,6 +307,8 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
     gl.enableVertexAttribArray(uvLocation);
     gl.vertexAttribPointer(uvLocation, 2, gl.FLOAT, false, 20, 12);
     gl.drawArrays(gl.TRIANGLES, 0, group.data.length / 5);
+    lastRenderAt = now;
+    drawnTriangles += group.data.length / 15;
    }
    gl.disableVertexAttribArray(positionLocation);
    gl.disableVertexAttribArray(uvLocation);
@@ -512,6 +516,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
   },
   stats() {
    return {enabled, roofs:roofCount, atlases:entries.size,
+    lastRenderAt, drawnTriangles,
     ready:[...entries.values()].filter(entry => entry.canvas).length,
     loading:activeLoads, layer:Boolean(map.getLayer?.(SATELLITE_ROOF_LAYER_ID))};
   },
