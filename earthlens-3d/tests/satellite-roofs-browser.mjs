@@ -75,7 +75,10 @@ try{
    if(delta>30) difference++;
   }
  }
- assert.ok(difference>120, 'Satellite-textured roof geometry should change visible pixels, got '+difference);
+ if(difference<=120){
+  await page.screenshot({path:'screenshots/earthlens-roofs-invisible.png',animations:'disabled'}).catch(()=>{});
+ }
+ assert.ok(difference>120, 'Satellite-textured roof geometry should change visible pixels: '+JSON.stringify({difference,before,after:await page.evaluate(()=>window.__earthlensDiagnostics?.().satelliteRoofs),errors,logs:logs.slice(-12)}));
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent(
   'earthlens:satellite-changed',{detail:{enabled:true}}
  )));
