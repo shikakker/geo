@@ -602,7 +602,7 @@ function boot(){
     attributionControl:false,hash:false
    });
    app.map=map;
-   app.satelliteRoofs=createSatelliteRoofProjection(map,{debugNoDepth:new URLSearchParams(location.search).has('earthlensRoofDebugNoDepth')});
+   app.satelliteRoofs=createSatelliteRoofProjection(map);
    window.addEventListener('earthlens:satellite-changed',event=>app.satelliteRoofs?.setEnabled(event.detail?.enabled));
    app.stopProgress=watchMapTiles(map,app.stream);
    map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
