@@ -13,6 +13,8 @@ export function preserveEarthLensOverlays(previous,incoming){
  const existing=new Set(nextLayers.map(layer=>layer.id));
  const preserved=(previous.layers||[]).filter(layer=>{
   if(!layer?.id?.startsWith('earthlens-')||existing.has(layer.id))return false;
+  // Custom 3D layers own GPU objects and lifecycle: recreate after style.load.
+  if(layer.type==='custom')return false;
   if(layer.source&&!Object.hasOwn(nextSources,layer.source))return false;
   // A building layer linked to the OLD basemap vector source cannot safely
   // be reused when the new style changes its source identity or tile URL.
