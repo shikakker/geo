@@ -259,7 +259,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth',deb
    if(!matrix) return;
    const now = performance.now();
    const viewport=gl.getParameter(gl.VIEWPORT);
-   gpuDebug={viewport:[...viewport],size:[gl.drawingBufferWidth,gl.drawingBufferHeight],framebuffer:Boolean(gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING)),programLink:Boolean(gl.getProgramParameter(program,gl.LINK_STATUS))};
+   gpuDebug={viewport:[...viewport],size:[gl.drawingBufferWidth,gl.drawingBufferHeight],framebuffer:Boolean(gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING)),programLink:Boolean(gl.getProgramParameter(program,gl.LINK_STATUS)),largestTrianglePx:0,triangleSamples:0};
    // Custom renderers cannot rely on MapLibre's prior GL clipping or color
    // masks. Preserve the state that may otherwise hide correctly drawn roofs.
    const scissorWasEnabled=gl.isEnabled(gl.SCISSOR_TEST);
@@ -315,6 +315,23 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth',deb
       clipZ:(matrix[2]*x+matrix[6]*y+matrix[10]*z+matrix[14])/w,
       w,z
      };
+    }
+    // Screen-space triangle extent indicates whether triangle vertices
+    // survived Mercator precision conversion or collapsed to subpixels.
+    if(group.data.length>=15){
+     const coords=[];
+     for(let vertex=0;vertex<3;vertex++){
+      const idx=vertex*5,ax=group.data[idx],ay=group.data[idx+1],az=group.data[idx+2];
+      const cw=matrix[3]*ax+matrix[7]*ay+matrix[11]*az+matrix[15];
+      coords.push([
+       ((matrix[0]*ax+matrix[4]*ay+matrix[8]*az+matrix[12])/cw+1)*gl.drawingBufferWidth/2,
+       ((matrix[1]*ax+matrix[5]*ay+matrix[9]*az+matrix[13])/cw+1)*gl.drawingBufferHeight/2
+      ]);
+     }
+     const area=Math.abs((coords[1][0]-coords[0][0])*(coords[2][1]-coords[0][1])-
+      (coords[1][1]-coords[0][1])*(coords[2][0]-coords[0][0]))/2;
+     gpuDebug.largestTrianglePx=Math.max(gpuDebug.largestTrianglePx,area);
+     gpuDebug.triangleSamples++;
     }
     if(!group.buffer) {
      group.buffer = gl.createBuffer();
@@ -522,9 +539,9 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth',deb
   if(!enabled || !map.getLayer?.('earthlens-3d-buildings') ||
      !map.isStyleLoaded?.()) return false;
   if(!map.getLayer(SATELLITE_ROOF_LAYER_ID)){
-   const firstLabel=map.getStyle().layers.find(
-    item=>item.type==='symbol')?.id;
-   try{map.addLayer(layer,firstLabel);}
+   // Draw roofs as the last MapLibre style layer. Terrain/extrusion passes
+   // otherwise composite over an earlier custom GL layer.
+   try{map.addLayer(layer);}
    catch(error){console.warn('Satellite roof renderer:',error);return false;}
   }
   return true;
