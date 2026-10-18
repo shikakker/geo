@@ -557,6 +557,9 @@ function boot(){
    $('geo-card').hidden=true;
    const selectedPlace={title:place.shortName,lat:place.lat,lon:place.lng};
    const keepSelected=()=>app.placesHub?.select(selectedPlace);
+   // Update immediately, then again after fly-to completes. On a slow/mobile
+   // animation the bookmark panel can open before the terminal moveend event.
+   keepSelected();
    // Fly-to dispatches the global moveend event, which clears any previous
    // selection. Restore the searched place label AFTER the destination lands.
    if(app.fallbackActive&&app.leaflet?.once)app.leaflet.once('moveend',keepSelected);
