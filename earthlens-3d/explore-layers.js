@@ -11,7 +11,7 @@ import {solarPosition} from './solar-position.js';
 import {createFrameQueue} from './progressive-render.js';
 import {warmSpatialAcceleration,visibleByDistance,createCandidateCache} from './spatial-acceleration.js';
 import {createAdaptiveQuality,beginMoveFpsSampling} from './adaptive-quality.js';
-import {restoredLayers,storeLayers,restoredQuality,storeQuality} from './layer-preferences.js';
+import {restoredLayers,storeLayers,restoredQuality,storeQuality,restoredImagery,storeImagery} from './layer-preferences.js';
 const THEMES=[
  {id:'addresses',name:'Адреса',symbol:'⌂',on:true},
  {id:'trees',name:'Деревья и природа',symbol:'♣',on:true},
@@ -39,7 +39,7 @@ const bound=(x,min,max)=>Math.min(max,Math.max(min,x));
 const isCoord=x=>Number.isFinite(x)&&Math.abs(x)<=180;
 const cache=new Map();
 const canopyPolygon=(lon,lat,radiusMeters)=>{const latScale=radiusMeters/111320,lonScale=latScale/Math.max(.2,Math.cos(lat*Math.PI/180));const ring=[];for(let i=0;i<=10;i++){const a=i*Math.PI/5;ring.push([lon+Math.cos(a)*lonScale,lat+Math.sin(a)*latScale])}return [ring]};
-const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),exitingMarkers:new Map(),drawRaf:null,candidates:createCandidateCache(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',qualityPreference:'auto',qualityController:null,stopFpsSampling:null,selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(restoredLayers(THEMES.map(t=>t.id),THEMES.filter(t=>t.on).map(t=>t.id))),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),osmStatus:'idle',cameraStatus:'idle',lastManualRetry:0,base:'streets',imagery:false,weatherError:false,lastTreeSource:null,lastTreeEnabled:null,treeIndex:null,treeEpoch:0,treePending:null};
+const state={map:null,fallback:false,leaflet:null,L:null,markers:[],markerIndex:new Map(),exitingMarkers:new Map(),drawRaf:null,candidates:createCandidateCache(),frameQueue:createFrameQueue(),controller:null,selectEpoch:0,windEpoch:0,quality:'smooth',qualityPreference:'auto',qualityController:null,stopFpsSampling:null,selectedFeature:null,photoController:null,seq:0,lastBounds:'',timer:null,active:new Set(restoredLayers(THEMES.map(t=>t.id),THEMES.filter(t=>t.on).map(t=>t.id))),features:[],cameraFeatures:[],weatherFeatures:[],weatherOffsetHours:0,osmCache:createTTLCache({limit:28,ttlMs:240000}),osmStatus:'idle',cameraStatus:'idle',lastManualRetry:0,base:'satellite',imagery:restoredImagery(),weatherError:false,lastTreeSource:null,lastTreeEnabled:null,treeIndex:null,treeEpoch:0,treePending:null};
 const providers=[
  {id:'airbnb',name:'Airbnb',url:(lat,lon)=>'https://www.airbnb.com/s/'+lat+','+lon+'/homes'},
  {id:'booking',name:'Booking',url:(lat,lon)=>'https://www.booking.com/searchresults.html?ss='+encodeURIComponent(lat+','+lon)},
@@ -603,12 +603,13 @@ function buildPanel(){
  [...GEO_ADDONS,...GEO_ADDONS_NEXT,...GEO_ADDONS_VISUAL].forEach(addon=>{const line=document.createElement('span');line.textContent=addon.name+' · '+addon.purpose;addonDetails.append(line)});
  const detail=document.createElement('section');detail.id='explore-detail';detail.className='explore-detail glass';detail.hidden=true;detail.setAttribute('aria-label','Сведения и фотографии места');el('app').append(detail);
  updateToggles();
+ satellite();
  aside.querySelectorAll('[data-explore-layer]').forEach(btn=>btn.addEventListener('click',()=>{const k=btn.dataset.exploreLayer;state.active.has(k)?state.active.delete(k):state.active.add(k);storeLayers(state.active);updateToggles();draw();void renderWindVectors();schedule()}));
  aside.querySelectorAll('[data-weather-hour]').forEach(btn=>btn.addEventListener('click',()=>{const h=Number(btn.dataset.weatherHour);if(!WEATHER_HORIZONS.includes(h))return;state.weatherOffsetHours=h;updateToggles();schedule()}));
  aside.querySelectorAll('[data-render-quality]').forEach(btn=>btn.addEventListener('click',()=>{state.qualityController?.setPreference(btn.dataset.renderQuality)}));
  el('explore-retry').addEventListener('click',retryDataSources);
  collapseButton.addEventListener('click',()=>{aside.classList.toggle('collapsed');syncCollapse()});
- el('explore-satellite').addEventListener('click',()=>{if(state.fallback){alert('Спутниковый слой доступен в WebGL-режиме.');return}state.imagery=!state.imagery;satellite()});
+ el('explore-satellite').addEventListener('click',()=>{if(state.fallback){alert('Спутниковый слой доступен в WebGL-режиме.');return}state.imagery=!state.imagery;storeImagery(state.imagery);satellite()});
 }
 function ensureAdaptiveQuality(){
  if(state.qualityController)return;
