@@ -3,6 +3,9 @@
 import {readSetting,writeSetting} from './saved-places.js';
 export const LAYERS_SETTING='earthlens:active-layers:v1';
 export const QUALITY_SETTING='earthlens:quality:v1';
+export const IMAGERY_SETTING='earthlens:imagery:v1';
+export function restoredImagery(storage){return readSetting(IMAGERY_SETTING,'on',storage)!=='off'}
+export function storeImagery(enabled,storage){return writeSetting(IMAGERY_SETTING,enabled?'on':'off',storage)}
 export function restoredLayers(knownIds,defaults,storage){
  const known=new Set(knownIds);
  const raw=readSetting(LAYERS_SETTING,'',storage);
