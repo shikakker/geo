@@ -234,8 +234,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
  let enabled = false, program = null, glContext = null, scheduleTimer = null;
  let vertexArray = null;
  let activeLoads = 0, lastView = '', roofCount = 0, idleAttempts = 0;
- let lastRenderAt = 0, drawnTriangles = 0, projectedSample = null;
- let gpuDebug = null;
+ let lastRenderAt = 0, drawnTriangles = 0;
  let origin = {x:0, y:0}, groups = new Map(), atlasEpoch = 0;
  const entries = new Map(), queue = [];
  const mobile = onSmallDevice();
@@ -258,8 +257,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
     options?.defaultProjectionData?.mainMatrix, origin);
    if(!matrix) return;
    const now = performance.now();
-   const viewport=gl.getParameter(gl.VIEWPORT);
-   gpuDebug={viewport:[...viewport],size:[gl.drawingBufferWidth,gl.drawingBufferHeight],framebuffer:Boolean(gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING)),programLink:Boolean(gl.getProgramParameter(program,gl.LINK_STATUS)),largestTrianglePx:0,triangleSamples:0};
+
    // Custom renderers cannot rely on MapLibre's prior GL clipping or color
    // masks. Preserve the state that may otherwise hide correctly drawn roofs.
    const scissorWasEnabled=gl.isEnabled(gl.SCISSOR_TEST);
@@ -307,33 +305,6 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
      atlas.texture = texture;
     }
-    if(!projectedSample && group.data.length>=5){
-     const [x,y,z]=group.data;
-     const w=matrix[3]*x+matrix[7]*y+matrix[11]*z+matrix[15];
-     if(w!==0)projectedSample={
-      x:(matrix[0]*x+matrix[4]*y+matrix[8]*z+matrix[12])/w,
-      y:(matrix[1]*x+matrix[5]*y+matrix[9]*z+matrix[13])/w,
-      clipZ:(matrix[2]*x+matrix[6]*y+matrix[10]*z+matrix[14])/w,
-      w,z
-     };
-    }
-    // Screen-space triangle extent indicates whether triangle vertices
-    // survived Mercator precision conversion or collapsed to subpixels.
-    if(group.data.length>=15){
-     const coords=[];
-     for(let vertex=0;vertex<3;vertex++){
-      const idx=vertex*5,ax=group.data[idx],ay=group.data[idx+1],az=group.data[idx+2];
-      const cw=matrix[3]*ax+matrix[7]*ay+matrix[11]*az+matrix[15];
-      coords.push([
-       ((matrix[0]*ax+matrix[4]*ay+matrix[8]*az+matrix[12])/cw+1)*gl.drawingBufferWidth/2,
-       ((matrix[1]*ax+matrix[5]*ay+matrix[9]*az+matrix[13])/cw+1)*gl.drawingBufferHeight/2
-      ]);
-     }
-     const area=Math.abs((coords[1][0]-coords[0][0])*(coords[2][1]-coords[0][1])-
-      (coords[1][1]-coords[0][1])*(coords[2][0]-coords[0][0]))/2;
-     gpuDebug.largestTrianglePx=Math.max(gpuDebug.largestTrianglePx,area);
-     gpuDebug.triangleSamples++;
-    }
     if(!group.buffer) {
      group.buffer = gl.createBuffer();
      gl.bindBuffer(gl.ARRAY_BUFFER, group.buffer);
@@ -358,7 +329,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
    gl.disableVertexAttribArray(uvLocation);
    gl.bindBuffer(gl.ARRAY_BUFFER, null);
    gl.bindTexture(gl.TEXTURE_2D, null);
-   gpuDebug.glError=gl.getError();
+
    gl.depthMask(true);
    gl.disable(gl.POLYGON_OFFSET_FILL);
    gl.bindVertexArray(null);
@@ -401,7 +372,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
   for(const entry of entries.values()) releaseAtlas(entry);
   queue.length = 0;
   discardGroups();
-  roofCount = 0; lastView = ''; projectedSample = null;
+  roofCount = 0; lastView = '';
  }
 
  function pump() {
@@ -515,7 +486,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
    accepted++;
   }
   discardGroups();
-  projectedSample=null;
+
   for(const [key, arrays] of rawGroups) {
    const len = arrays.reduce((sum, array) => sum + array.length, 0);
    const result = new Float32Array(len);
@@ -575,7 +546,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
   },
   stats() {
    return {enabled, roofs:roofCount, atlases:entries.size,
-    lastRenderAt, drawnTriangles, projectedSample, gpuDebug,
+    lastRenderAt, drawnTriangles,
     ready:[...entries.values()].filter(entry => entry.canvas).length,
     loading:activeLoads, layer:Boolean(map.getLayer?.(SATELLITE_ROOF_LAYER_ID))};
   },
