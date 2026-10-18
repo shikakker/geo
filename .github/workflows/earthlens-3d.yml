@@ -58,6 +58,8 @@ jobs:
           exit 1
       - name: Check real desktop and mobile map rendering
         run: node tests/browser-smoke.mjs
+      - name: Verify real WebGL satellite textured rooftops
+        run: node tests/satellite-roofs-browser.mjs
       - name: Probe Tokyo PLATEAU 3D Tiles and log provider errors
         # Upstream trial assets may time out: do not block a valid 3D OSM fallback release.
         continue-on-error: true
