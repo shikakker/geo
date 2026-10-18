@@ -10,7 +10,7 @@
 <main id="app" class="app">
 <div id="map" aria-label="Карта мира: прокрутите для приближения"></div>
 <div id="cesium-scene" class="cesium-stage" aria-label="Детальная сцена KHR Gaussian Splatting" aria-hidden="true"></div>
-<div id="loading" class="loading"><span class="spinner"></span><span id="loading-text">EARTHLENS 3D · ПОДКЛЮЧЕНИЕ КАРТЫ</span></div>
+<div id="loading" class="loading"><span class="spinner"></span><span id="loading-text">EARTHLENS 3D · ПОДКЛЮЧЕНИЕ КАРТЫ</span><button id="map-retry" type="button" hidden aria-label="Повторить загрузку карты">↻ Повторить загрузку</button></div>
 <header class="bar glass">
   <a href="./" class="brand" aria-label="EarthLens 3D — главная"><span class="brand-orb">◉</span><span>EARTH<b>LENS</b><sup>3D</sup></span></a>
   <form id="place-search" class="search-form" role="search" autocomplete="off">
@@ -64,6 +64,7 @@
 <span class="separator"></span><span id="zoom-label">ZOOM 14.5</span>
 <span class="separator optional"></span><span id="mode-label" class="optional">MAP</span>
 <span class="grow"></span><span id="layers-label">OPENFREEMAP / OSM</span>
+<span id="build-version" class="build-version" title="Версия EarthLens">v1.0</span>
 </footer>
 <div id="toast" class="toast" aria-live="polite" role="status"></div>
 </main>
