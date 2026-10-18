@@ -230,7 +230,7 @@ function onSmallDevice() {
   (typeof navigator !== 'undefined' && navigator.deviceMemory <= 4);
 }
 
-export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = {}) {
+export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth',debugNoDepth=false} = {}) {
  let enabled = false, program = null, glContext = null, scheduleTimer = null;
  let vertexArray = null;
  let activeLoads = 0, lastView = '', roofCount = 0, idleAttempts = 0;
@@ -273,8 +273,8 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
    const alphaLocation = gl.getUniformLocation(program, 'u_opacity');
    const positionLocation = gl.getAttribLocation(program, 'a_position');
    const uvLocation = gl.getAttribLocation(program, 'a_uv');
-   gl.enable(gl.DEPTH_TEST);
-   gl.depthFunc(gl.LEQUAL);
+   if(debugNoDepth)gl.disable(gl.DEPTH_TEST);
+   else { gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); }
    gl.depthMask(false);
    gl.enable(gl.BLEND);
    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
