@@ -388,7 +388,7 @@ function drawNow(){
      if(state.exitingMarkers.get(key)!==entry)return;
      state.exitingMarkers.delete(key);
      try{entry.marker.remove()}catch{}
-    },230);
+    },650);
    }
   }
   state.markers=[...state.markerIndex.values()].map(entry=>entry.marker);
