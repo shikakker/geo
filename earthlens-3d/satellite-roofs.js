@@ -258,7 +258,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
  const entries = new Map(), queue = [];
  const mobile = onSmallDevice();
  const maxAtlases = mobile ? 2 : 4;
- const maxRoofs = mobile ? 100 : 280;
+ const maxRoofs = mobile ? 85 : 220;
  const maxConcurrent = mobile ? 1 : 2;
  // Small, memory-only LRU smooths camera reversals without refetching the
  // same 16 XYZ tiles. No disk archive or persistent imagery storage.

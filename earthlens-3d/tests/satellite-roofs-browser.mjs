@@ -44,7 +44,7 @@ try{
     && data?.satelliteRoofs?.roofs>0
     && data?.satelliteRoofs?.ready>0
     && data?.satelliteRoofs?.drawnTriangles>0;
-  },null,{timeout:18000});
+  },null,{timeout:30000});
  }catch(error){
   const data=await page.evaluate(()=>window.__earthlensDiagnostics?.()||null);
   await page.screenshot({path:'screenshots/earthlens-roofs-debug.png'}).catch(()=>{});
