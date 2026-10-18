@@ -35,8 +35,7 @@ try{
   url.pathname.includes('/World_Imagery/MapServer/tile/'),route=>
   route.fulfill({status:200,contentType:'image/png',
    headers:{'access-control-allow-origin':'*'},body:fixture}));
- await page.goto(base+(base.includes('?')?'&':'?')+'earthlensRoofDebugNoDepth=1',
-  {waitUntil:'domcontentloaded',timeout:28000});
+ await page.goto(base,{waitUntil:'domcontentloaded',timeout:28000});
  await page.locator('#loading.hidden').waitFor({timeout:38000});
  try {
   await page.waitForFunction(()=>{
