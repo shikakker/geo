@@ -33,7 +33,10 @@ export function normalizeSearchResults(data){
    category:String(item.category||item.class||item.type||'').slice(0,40)}];
  }).slice(0,5);
 }
-export function createGeocoder({fetcher=fetch,clock=Date.now,minIntervalMs=1200,ttlMs=10*60*1000}={}){
+export function createGeocoder({
+ fetcher=fetch,clock=Date.now,minIntervalMs=1200,ttlMs=10*60*1000,
+ deadlineMs=10000,setTimer=setTimeout,clearTimer=clearTimeout
+}={}){
  let lastNetworkAt=-Infinity;
  const memo=new Map();
  const pending=new Set();
@@ -54,18 +57,36 @@ export function createGeocoder({fetcher=fetch,clock=Date.now,minIntervalMs=1200,
   lastNetworkAt=clock();
   const controller=new AbortController();
   pending.add(controller);
-  const timeout=AbortSignal.timeout(10000);
-  const combined=signal&&AbortSignal.any?AbortSignal.any([controller.signal,signal,timeout]):controller.signal;
+  // The timeout must apply even without a caller-provided signal. Racing
+  // against cancellation also stops a provider that ignores AbortSignal
+  // while reading headers or JSON, without waiting for its cleanup.
+  let rejectCancelled=()=>{};
+  const cancelled=new Promise((_,reject)=>{rejectCancelled=reject});
+  const onCancelled=()=>rejectCancelled(new DOMException('Geocoding request cancelled or timed out','AbortError'));
+  const onCallerAbort=()=>controller.abort();
+  controller.signal.addEventListener('abort',onCancelled,{once:true});
+  signal?.addEventListener('abort',onCallerAbort,{once:true});
+  const timeoutId=setTimer(()=>controller.abort(),Math.max(1,Math.min(10000,Number(deadlineMs)||10000)));
+  if(signal?.aborted)controller.abort();
   try{
    const params=new URLSearchParams({format:'jsonv2',q,limit:'5',addressdetails:'0'});
-   const response=await fetcher(NOMINATIM_URL+'?'+params,{headers:{Accept:'application/json'},signal:combined});
+   const response=await Promise.race([
+    fetcher(NOMINATIM_URL+'?'+params,{headers:{Accept:'application/json'},signal:controller.signal}),
+    cancelled
+   ]);
    if(!response.ok)throw Error('Nominatim HTTP '+response.status);
-   const results=normalizeSearchResults(await response.json());
-   if(combined.aborted)throw new DOMException('Aborted','AbortError');
+   const payload=await Promise.race([response.json(),cancelled]);
+   if(controller.signal.aborted)throw new DOMException('Aborted','AbortError');
+   const results=normalizeSearchResults(payload);
    memo.set(key,{at:clock(),results});
    if(memo.size>35)memo.delete(memo.keys().next().value);
    return results.map(x=>({...x}));
-  }finally{pending.delete(controller)}
+  }finally{
+   clearTimer(timeoutId);
+   signal?.removeEventListener('abort',onCallerAbort);
+   controller.signal.removeEventListener('abort',onCancelled);
+   pending.delete(controller);
+  }
  }
  return {search,cancel,get cachedCount(){return memo.size}};
 }

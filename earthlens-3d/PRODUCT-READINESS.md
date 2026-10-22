@@ -70,3 +70,9 @@ The Finnish road-camera layer uses a **same-origin, read-only `/api/cameras` end
 - Deterministic camera-provider normalization, server CORS-safety and failure tests protect this flow. See [Fintraffic's road traffic API documentation](https://www.digitraffic.fi/en/road-traffic/).
 
 Limitations: camera snapshots remain provider-hosted external images and are not guaranteed to be accessible from every jurisdiction or network. Fintraffic's API restrictions/attribution still apply.
+
+## 22 October 2026 — bounded Nominatim search (isolated PR)
+- Source: feature branch `feature/earthlens-explore-layers-20261016` at `435ac27af9917ccb00f3d5867d9c048437b4141b`, deployed as Vercel READY, HTTP 200; no production promotion.
+- Confirmed P1 by source: the geocoder's `AbortSignal.timeout(10000)` was only included when an optional caller `signal` existed *and* the browser supported `AbortSignal.any`. On direct `search(query)` calls or browsers without `AbortSignal.any`, remote geocoding could hang indefinitely.
+- Fix: always attach a bounded deadline to a local AbortController; forward caller cancellation, race non-cooperative fetch and JSON body against abort and clean timer/listeners in all cases.
+- Three Node tests added for no-caller-signal timeout, caller abort and hung JSON. Verify exact-head Node tests, Vite build, API/browser Preview, keyboard query flow before release. Status PARTIAL until proven.
