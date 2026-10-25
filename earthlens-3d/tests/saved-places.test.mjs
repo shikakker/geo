@@ -75,3 +75,17 @@ test('Saved map views reject corrupted fields and preserve privacy',async()=>{
  assert.match(app,/readSetting\('earthlens:lod'\)/);
  assert.doesNotMatch(app,/localStorage\.getItem\('earthlens:lod'\)/);
 });
+
+
+test('blank and missing coordinates never create false saved places at (0,0)',()=>{
+ for(const invalid of [
+  {lat:'',lng:''},
+  {lat:' ',lng:' '},
+  {lat:null,lng:null},
+  {lat:[],lng:[]},
+  {center:[null,null]},
+  {center:['','']}
+ ])assert.equal(normalizeSavedView(invalid),null,JSON.stringify(invalid));
+ const valid=normalizeSavedView({lat:0,lng:'0',title:'Greenwich / Equator'});
+ assert.deepEqual([valid.lat,valid.lng],[0,0]);
+});

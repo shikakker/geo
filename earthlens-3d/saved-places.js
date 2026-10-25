@@ -4,6 +4,16 @@
 export const SAVED_PLACES_KEY='earthlens:saved-places:v1';
 const LIMIT=30;
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n));
+// Nominatim and imported map data may contain null/blank coordinates.
+// Number(null), Number('') and Number([]) would otherwise fabricate (0, 0).
+function parseCoordinate(value){
+ if(typeof value==='number')return value;
+ if(typeof value!=='string'||!value.trim())return NaN;
+ const text=value.trim();
+ if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(text))return NaN;
+ return Number(text);
+}
+
 export function safeLocalStorage(){
  try{return typeof window==='undefined'?null:window.localStorage}catch{return null}
 }
@@ -16,8 +26,8 @@ export function writeSetting(key,value,storage=safeLocalStorage()){
 export function normalizeSavedView(view,now=Date.now()){
  if(!view||typeof view!=='object')return null;
  const center=view.center??null;
- const lat=Number(view.lat??center?.lat??(Array.isArray(center)?center[1]:undefined));
- const lng=Number(view.lng??center?.lng??(Array.isArray(center)?center[0]:undefined));
+ const lat=parseCoordinate(view.lat??center?.lat??(Array.isArray(center)?center[1]:undefined));
+ const lng=parseCoordinate(view.lng??center?.lng??(Array.isArray(center)?center[0]:undefined));
  const zoom=Number(view.zoom??16),bearing=Number(view.bearing??0),pitch=Number(view.pitch??0);
  if(![lat,lng,zoom,bearing,pitch].every(Number.isFinite)||Math.abs(lat)>85||Math.abs(lng)>180)return null;
  const clean=s=>String(s??'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,80);

@@ -60,3 +60,62 @@ test('Search controller never relies on unsafe HTML and supports keyboard focus'
  assert.match(app,/attachPlaceSearch\(\{/);
  assert.doesNotMatch(app,/async function placeSearch\(/);
 });
+
+test('geocoder timeout bounds a noncooperative fetch even without a caller signal',async()=>{
+ let deadline,signal,cleared=0;
+ const geo=createGeocoder({
+  fetcher:(_url,options)=>{signal=options.signal;return new Promise(()=>{})},
+  setTimer:(cb,ms)=>{assert.equal(ms,10000);deadline=cb;return 1},
+  clearTimer:id=>{assert.equal(id,1);cleared++}
+ });
+ const pending=geo.search('Berlin');
+ assert.equal(typeof deadline,'function');
+ assert.equal(signal.aborted,false);
+ deadline();
+ await assert.rejects(pending,{name:'AbortError'});
+ assert.equal(signal.aborted,true);
+ assert.equal(cleared,1);
+ assert.equal(geo.cachedCount,0);
+});
+test('external cancellation bounds noncooperative geocoder and cleans timer',async()=>{
+ let cancelled=0,cleared=0;
+ const controller=new AbortController();
+ const geo=createGeocoder({
+  fetcher:(_url,{signal})=>{signal.addEventListener('abort',()=>cancelled++);return new Promise(()=>{})},
+  setTimer:()=>77,
+  clearTimer:id=>{assert.equal(id,77);cleared++}
+ });
+ const pending=geo.search('Helsinki',{signal:controller.signal});
+ controller.abort();
+ await assert.rejects(pending,{name:'AbortError'});
+ assert.equal(cancelled,1);
+ assert.equal(cleared,1);
+});
+test('timeout also covers JSON responses that never settle',async()=>{
+ let deadline,cleared=0;
+ const geo=createGeocoder({
+  fetcher:async()=>({ok:true,json:()=>new Promise(()=>{})}),
+  setTimer:fn=>{deadline=fn;return 91},
+  clearTimer:id=>{assert.equal(id,91);cleared++}
+ });
+ const pending=geo.search('Barcelona');
+ await Promise.resolve();
+ deadline();
+ await assert.rejects(pending,{name:'AbortError'});
+ assert.equal(cleared,1);
+});
+
+
+test('Nominatim ignores null and blank coordinates without fabricating Null Island',()=>{
+ const invalid=[
+  null,
+  {},
+  {place_id:1,lat:'',lon:'',display_name:'Unknown'},
+  {place_id:2,lat:null,lon:null,display_name:'Missing'},
+  {place_id:3,lat:' ',lon:' ',display_name:'Blank'},
+  {place_id:4,lat:[],lon:[],display_name:'Not coordinates'}
+ ];
+ assert.deepEqual(normalizeSearchResults(invalid),[]);
+ const atOrigin=normalizeSearchResults([{place_id:5,lat:'0',lon:0,display_name:'Equator / Greenwich'}]);
+ assert.deepEqual([atOrigin[0].lat,atOrigin[0].lng],[0,0]);
+});
