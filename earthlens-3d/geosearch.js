@@ -1,6 +1,16 @@
 // A user-initiated, rate-limited place search. Nominatim's public endpoint
 // must NOT be used for autocomplete or background query loops.
 export const NOMINATIM_URL='https://nominatim.openstreetmap.org/search';
+// Nominatim and imported map data may contain null/blank coordinates.
+// Number(null), Number('') and Number([]) would otherwise fabricate (0, 0).
+function parseCoordinate(value){
+ if(typeof value==='number')return value;
+ if(typeof value!=='string'||!value.trim())return NaN;
+ const text=value.trim();
+ if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(text))return NaN;
+ return Number(text);
+}
+
 export function suggestedZoom(boundingbox){
  if(!Array.isArray(boundingbox)||boundingbox.length<4)return 15.5;
  const [south,north,west,east]=boundingbox.map(Number);
@@ -22,7 +32,8 @@ export function normalizeSearchResults(data){
  if(!Array.isArray(data))return [];
  const seen=new Set();
  return data.flatMap(item=>{
-  const lat=Number(item.lat),lng=Number(item.lon);
+  if(!item||typeof item!=='object')return [];
+  const lat=parseCoordinate(item.lat),lng=parseCoordinate(item.lon);
   if(!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>85||Math.abs(lng)>180)return [];
   const title=String(item.display_name||item.name||'Место на карте').trim().slice(0,220);
   const key=lat.toFixed(5)+':'+lng.toFixed(5);
