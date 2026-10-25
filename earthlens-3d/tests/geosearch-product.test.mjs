@@ -104,3 +104,18 @@ test('timeout also covers JSON responses that never settle',async()=>{
  await assert.rejects(pending,{name:'AbortError'});
  assert.equal(cleared,1);
 });
+
+
+test('Nominatim ignores null and blank coordinates without fabricating Null Island',()=>{
+ const invalid=[
+  null,
+  {},
+  {place_id:1,lat:'',lon:'',display_name:'Unknown'},
+  {place_id:2,lat:null,lon:null,display_name:'Missing'},
+  {place_id:3,lat:' ',lon:' ',display_name:'Blank'},
+  {place_id:4,lat:[],lon:[],display_name:'Not coordinates'}
+ ];
+ assert.deepEqual(normalizeSearchResults(invalid),[]);
+ const atOrigin=normalizeSearchResults([{place_id:5,lat:'0',lon:0,display_name:'Equator / Greenwich'}]);
+ assert.deepEqual([atOrigin[0].lat,atOrigin[0].lng],[0,0]);
+});
