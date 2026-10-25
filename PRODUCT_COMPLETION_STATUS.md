@@ -14,3 +14,12 @@
 - **Deploy:** NOT READY for exact PR4. **Production:** NOT CHANGED. **Merge:** NOT PERFORMED.
 
 **Next action:** map `earthlens-3d` to its own Vercel preview root without changing an unrelated production project; then run exact-head build, interactive smoke and preview verification. Keep provider claims/coverage truthful.
+
+## 2026-10-26 — P1 invalid-coordinate rejection and exact preview
+
+- **RED confirmed:** persisted map views with `lat:''/lng:''`, nulls or empty arrays became a valid-looking point at (0,0) because `Number('')===0`, `Number(null)===0`; Nominatim responses containing null records crashed during `item.lat` access. These are source/accuracy bugs, not merely theoretical input constraints.
+- **Regression commit `9291e6db7006d0c61f86682bad3c2c623029ae97`:** saved-place and geosearch tests for blank/null/array coordinates and valid numeric/string zero.
+- **Fix `796ba2327df6c4ecad5045394312699ca60e7783`:** decimal-only parsing of numeric coordinate values; missing/blank/array entries are rejected, malformed upstream records are skipped without blanking the whole search. Legitimate equator/Greenwich zero coordinates continue to work.
+- **Exact-source Node 22 proof:** two focused tests **RED 0/2 → GREEN 2/2 PASS**.
+- **Exact-head Vercel preview `dpl_A5Ka2QV3wmHR6ZB9pd43gW2m7WLB`:** **READY** at https://earthlens-3d-kpuwfqtau-egordenisov.vercel.app. Vercel build logs: **79/79 tests passed, 0 failed**; build completed. Project `prj_pF6396s5qJX4DfIOD6XdpBSRVyxj` correctly builds Vite app in `earthlens-3d/`, unlike unrelated root Next.js example.
+- **Remaining:** interactive MapLibre/WebGL/Leaflet browser QA, mobile widths 375/768/1024/1440, geocoder live Nominatim calls, tile/DEM data and camera/PLATEAU/3D external-source verification. No production promotion or merge. **PARTIAL**, PR#4 remains Draft.
