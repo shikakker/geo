@@ -60,3 +60,15 @@ yarn dev
 ```
 
 Deploy it to the cloud with [Vercel](https://vercel.com/new?utm_source=github&utm_medium=readme&utm_campaign=edge-middleware-eap) ([Documentation](https://nextjs.org/docs/deployment)).
+
+
+## Canonical product: EarthLens 3D (October 2026)
+
+**The actual EarthLens product is in [earthlens-3d/](earthlens-3d/), not the legacy Next.js geolocation sample in this repository root.** The app has its own Vite configuration, tests, source and [product README](earthlens-3d/README.md).
+
+- Product URL: https://earthlens-3d.vercel.app
+- Build from the app directory: `cd earthlens-3d && npm install && npm run check && npm test && npm run build`
+- Vercel product project: `earthlens-3d`, framework Vite, Root Directory `earthlens-3d`, output `dist`.
+- Legacy Vercel project: `geo`, building the unrelated **repository root** with Next.js canary. Its install currently fails because ESLint 8 conflicts with `eslint-config-next@canary` (requires ESLint >=9). Do not confuse a `geo` deployment failure with the status of EarthLens. Preserve the legacy sample separately unless migration is approved.
+
+For data-source limitations, Gaussian-scene coverage, attribution, quota/fair-use requirements and browser support, consult [EarthLens documentation](earthlens-3d/README.md) and [product readiness](earthlens-3d/PRODUCT-READINESS.md). An open-source renderer does not make hosted imagery unlimited. No Vercel configuration or production routing is modified here.
