@@ -12,8 +12,23 @@ const RAD = Math.PI / 180;
 const EARTH_CIRCUMFERENCE = 2 * Math.PI * 6378137;
 const ATLAS_TILES = 4;
 const TILE_SIZE = 256;
-const MIN_ZOOM = 15.2;
+const MIN_ZOOM = 14.65;
+const ZOOM_FADE_FULL = 15.7;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+export function nearestLongitude(lon,reference) {
+ return Number(lon)+360*Math.round((Number(reference)-Number(lon))/360);
+}
+export function satelliteZoomOpacity(zoom){
+ const t=clamp((Number(zoom)-MIN_ZOOM)/(ZOOM_FADE_FULL-MIN_ZOOM),0,1);
+ return t*t*(3-2*t);
+}
+export function selectImageryZoom(zoom,previous=0){
+ const desired=clamp(Math.floor(Number(zoom))+1,16,18);
+ if(!previous||Math.abs(previous-desired)!==1)return desired;
+ if(desired>previous && zoom<desired-1+0.22)return previous;
+ if(desired<previous && zoom>previous-1-0.22)return previous;
+ return desired;
+}
 
 export function webMercator(lon, lat) {
  const latitude = clamp(Number(lat), -85.05112878, 85.05112878) * RAD;
@@ -60,7 +75,11 @@ export function imageryAtlasForPolygon(rings, zoom, minZoom=14) {
 
 export function imageryUV(lon, lat, atlas) {
  const tile = imageryTile(lon, lat, atlas.z);
- return [(tile.x - atlas.x) / ATLAS_TILES,
+ // Keep a roof on the same 4x4 tile atlas even if the OSM polygon is
+ // expressed as -179.999 and its center as +180.001 degrees.
+ const world=2**atlas.z;
+ const localX=tile.x+world*Math.round((atlas.x+ATLAS_TILES/2-tile.x)/world);
+ return [(localX - atlas.x) / ATLAS_TILES,
   (tile.y - atlas.y) / ATLAS_TILES];
 }
 
@@ -104,7 +123,11 @@ function polygonCenter(rings) {
  const ring = cleanedRing(rings?.[0]);
  if(ring.length < 3) return null;
  let x = 0, y = 0;
- for(const point of ring) { x += point[0]; y += point[1]; }
+ const reference=ring[0][0];
+ for(const point of ring) {
+  x += nearestLongitude(point[0],reference);
+  y += point[1];
+ }
  return {lon: x / ring.length, lat: y / ring.length};
 }
 
@@ -124,13 +147,15 @@ export function triangulateSatelliteRoof(rings, atlas, origin, heightMeters) {
   if(ring.length < 3 || ring.length > 1500) continue;
   if(count > 0) holes.push(count);
   for(const point of ring) {
-   const xy = webMercator(point[0], point[1]);
-   const uv = imageryUV(point[0], point[1], atlas);
+   const lon=nearestLongitude(point[0],exterior.lon);
+   const xy = webMercator(lon,point[1]);
+   const x=xy.x-Math.round(xy.x-origin.x);
+   const uv = imageryUV(lon, point[1], atlas);
    // Do not clamp or repeat satellite data: an out-of-bounds mesh would
    // otherwise show a different building's roof or stretched pixels.
    if(uv[0] < 0 || uv[0] > 1 || uv[1] < 0 || uv[1] > 1) return null;
-   flat.push(xy.x, xy.y);
-   vertices.push(xy.x - origin.x, xy.y - origin.y, mercatorAltitude,
+   flat.push(x, xy.y);
+   vertices.push(x - origin.x, xy.y - origin.y, mercatorAltitude,
     uv[0], uv[1]);
    count++;
   }
@@ -253,7 +278,8 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
  let enabled = false, program = null, glContext = null, scheduleTimer = null;
  let vertexArray = null;
  let activeLoads = 0, lastView = '', roofCount = 0, idleAttempts = 0;
- let lastRenderAt = 0, drawnTriangles = 0;
+ let lastRenderAt = 0, drawnTriangles = 0, imageryZoom=0;
+ let anisotropyExtension=null, maxAnisotropy=1;
  let origin = {x:0, y:0}, groups = new Map(), atlasEpoch = 0;
  const entries = new Map(), queue = [];
  const mobile = onSmallDevice();
@@ -271,6 +297,9 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
   onAdd(_map, gl) {
    glContext = gl;
    vertexArray = gl.createVertexArray();
+   anisotropyExtension=gl.getExtension('EXT_texture_filter_anisotropic');
+   maxAnisotropy=anisotropyExtension?
+    Math.min(8,gl.getParameter(anisotropyExtension.MAX_TEXTURE_MAX_ANISOTROPY_EXT)):1;
    try { program = createProgram(gl); }
    catch(error) { console.warn(error); program = null; }
   },
@@ -283,9 +312,29 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
 
    // Custom renderers cannot rely on MapLibre's prior GL clipping or color
    // masks. Preserve the state that may otherwise hide correctly drawn roofs.
-   const scissorWasEnabled=gl.isEnabled(gl.SCISSOR_TEST);
-   const stencilWasEnabled=gl.isEnabled(gl.STENCIL_TEST);
-   const previousColorMask=gl.getParameter(gl.COLOR_WRITEMASK);
+   const previous={
+    scissor:gl.isEnabled(gl.SCISSOR_TEST),
+    stencil:gl.isEnabled(gl.STENCIL_TEST),
+    depth:gl.isEnabled(gl.DEPTH_TEST),
+    depthFunc:gl.getParameter(gl.DEPTH_FUNC),
+    depthMask:gl.getParameter(gl.DEPTH_WRITEMASK),
+    blend:gl.isEnabled(gl.BLEND),
+    blendSrcRgb:gl.getParameter(gl.BLEND_SRC_RGB),
+    blendDstRgb:gl.getParameter(gl.BLEND_DST_RGB),
+    blendSrcAlpha:gl.getParameter(gl.BLEND_SRC_ALPHA),
+    blendDstAlpha:gl.getParameter(gl.BLEND_DST_ALPHA),
+    cull:gl.isEnabled(gl.CULL_FACE),
+    offset:gl.isEnabled(gl.POLYGON_OFFSET_FILL),
+    offsetFactor:gl.getParameter(gl.POLYGON_OFFSET_FACTOR),
+    offsetUnits:gl.getParameter(gl.POLYGON_OFFSET_UNITS),
+    colorMask:gl.getParameter(gl.COLOR_WRITEMASK),
+    program:gl.getParameter(gl.CURRENT_PROGRAM),
+    vertexArray:gl.getParameter(gl.VERTEX_ARRAY_BINDING),
+    arrayBuffer:gl.getParameter(gl.ARRAY_BUFFER_BINDING),
+    activeTexture:gl.getParameter(gl.ACTIVE_TEXTURE)
+   };
+   gl.activeTexture(gl.TEXTURE0);
+   const previousTexture0=gl.getParameter(gl.TEXTURE_BINDING_2D);
    gl.disable(gl.SCISSOR_TEST);
    gl.disable(gl.STENCIL_TEST);
    gl.colorMask(true,true,true,true);
@@ -319,6 +368,8 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER,
       gl.LINEAR_MIPMAP_LINEAR);
      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+     if(anisotropyExtension)gl.texParameterf(gl.TEXTURE_2D,
+      anisotropyExtension.TEXTURE_MAX_ANISOTROPY_EXT,maxAnisotropy);
      // The UV convention is north=0, south=1 (XYZ). Canvas texImage2D
      // with UNPACK_FLIP_Y_WEBGL=false maps its top row to v=0.
      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
@@ -336,7 +387,8 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
     const progress = matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
      ? 1 : Math.min(1, (now - atlas.readyAt) / 650);
     if(progress < 1) fading = true;
-    gl.uniform1f(alphaLocation, progress * 0.98);
+    gl.uniform1f(alphaLocation, progress * 0.98*
+     satelliteZoomOpacity(map.getZoom()));
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, atlas.texture);
     gl.bindBuffer(gl.ARRAY_BUFFER, group.buffer);
@@ -350,15 +402,23 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
    }
    gl.disableVertexAttribArray(positionLocation);
    gl.disableVertexAttribArray(uvLocation);
-   gl.bindBuffer(gl.ARRAY_BUFFER, null);
-   gl.bindTexture(gl.TEXTURE_2D, null);
-
-   gl.depthMask(true);
-   gl.disable(gl.POLYGON_OFFSET_FILL);
-   gl.bindVertexArray(null);
-   gl.colorMask(...previousColorMask);
-   if(scissorWasEnabled)gl.enable(gl.SCISSOR_TEST);
-   if(stencilWasEnabled)gl.enable(gl.STENCIL_TEST);
+   gl.bindVertexArray(previous.vertexArray);
+   gl.bindBuffer(gl.ARRAY_BUFFER,previous.arrayBuffer);
+   gl.bindTexture(gl.TEXTURE_2D,previousTexture0);
+   gl.activeTexture(previous.activeTexture);
+   gl.useProgram(previous.program);
+   gl.depthMask(previous.depthMask);
+   gl.depthFunc(previous.depthFunc);
+   gl.blendFuncSeparate(previous.blendSrcRgb,previous.blendDstRgb,
+    previous.blendSrcAlpha,previous.blendDstAlpha);
+   gl.polygonOffset(previous.offsetFactor,previous.offsetUnits);
+   gl.colorMask(...previous.colorMask);
+   if(previous.depth)gl.enable(gl.DEPTH_TEST);else gl.disable(gl.DEPTH_TEST);
+   if(previous.blend)gl.enable(gl.BLEND);else gl.disable(gl.BLEND);
+   if(previous.cull)gl.enable(gl.CULL_FACE);else gl.disable(gl.CULL_FACE);
+   if(previous.offset)gl.enable(gl.POLYGON_OFFSET_FILL);else gl.disable(gl.POLYGON_OFFSET_FILL);
+   if(previous.scissor)gl.enable(gl.SCISSOR_TEST);
+   if(previous.stencil)gl.enable(gl.STENCIL_TEST);
    if(fading) map.triggerRepaint();
   },
   onRemove(_map, gl) {
@@ -404,13 +464,15 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
   queue.length = 0;
   discardGroups();
   roofCount = 0; lastView = '';
+  imageryZoom=0;
   atlasCache.clear();
  }
 
  function pump() {
   while(activeLoads < maxConcurrent && queue.length) {
    const entry = queue.shift();
-   if(!enabled || !entries.has(entry.key) || entry.controller) continue;
+   if(!enabled || entries.get(entry.key)!==entry ||
+      entry.controller || entry.canvas || entry.failed) continue;
    const controller = new AbortController();
    entry.controller = controller;
    const requestEpoch = atlasEpoch;
@@ -463,7 +525,8 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
    zoom.toFixed(2), getQuality()].join(':');
   if(!force && view === lastView) return;
   lastView = view;
-  const tileZoom = clamp(Math.floor(zoom) + 1, 16, 18);
+  const tileZoom=selectImageryZoom(zoom,imageryZoom);
+  imageryZoom=tileZoom;
   let features = [];
   try {
    features = map.queryRenderedFeatures({
@@ -591,7 +654,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
   },
   stats() {
    return {enabled, roofs:roofCount, atlases:entries.size,
-    lastRenderAt, drawnTriangles,cacheHits:atlasCacheHits,
+    lastRenderAt, drawnTriangles,imageryZoom,cacheHits:atlasCacheHits,
     ready:[...entries.values()].filter(entry => entry.canvas).length,
     loading:activeLoads,
     failed:[...entries.values()].filter(entry=>entry.failed).length,

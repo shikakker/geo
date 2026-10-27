@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {imageryTile,imageryAtlasFor,imageryUV,imageryURL,webMercator,
  roofHeight,triangulateSatelliteRoof,satelliteProjectionMatrix,
- imageryAtlasForPolygon} from '../satellite-roofs.js';
+ imageryAtlasForPolygon,nearestLongitude,satelliteZoomOpacity,
+ selectImageryZoom} from '../satellite-roofs.js';
 
 test('Web Mercator satellite coordinates align geographic positions and imagery XYZ',()=>{
  assert.deepEqual(webMercator(0,0),{x:.5,y:.5});
@@ -66,4 +67,31 @@ test('Large buildings use coarser but aligned photographic roof atlases',()=>{
  ]];
  assert.equal(imageryAtlasForPolygon(huge,18,14),null,
   'a city-sized geometry must use the standard 3D material');
+});
+
+test('Dateline-crossing roofs use one correctly wrapped atlas and local GPU coordinates',()=>{
+ const ring=[[
+  [179.9996,0.001],[-179.9996,0.001],[-179.9996,-0.001],
+  [179.9996,-0.001],[179.9996,0.001]
+ ]];
+ assert.ok(Math.abs(nearestLongitude(-179.9996,179.9996)-180.0004)<1e-8);
+ const atlas=imageryAtlasForPolygon(ring,16,14);
+ assert.ok(atlas);
+ const origin=webMercator(-179.9999,0);
+ const mesh=triangulateSatelliteRoof(ring,atlas,origin,12);
+ assert.ok(mesh&&mesh.length>0);
+ for(let i=0;i<mesh.length;i+=5){
+  assert.ok(Math.abs(mesh[i])<0.001,'roof must render near the camera copy of the world');
+  assert.ok(mesh[i+3]>=0&&mesh[i+3]<=1);
+  assert.ok(mesh[i+4]>=0&&mesh[i+4]<=1);
+ }
+});
+test('Roof imagery uses smooth zoom fade and hysteresis around tile boundaries',()=>{
+ assert.equal(satelliteZoomOpacity(14.5),0);
+ assert.equal(satelliteZoomOpacity(16),1);
+ assert.ok(satelliteZoomOpacity(15.2)>0&&satelliteZoomOpacity(15.2)<1);
+ assert.equal(selectImageryZoom(16.1,16),16);
+ assert.equal(selectImageryZoom(16.3,16),17);
+ assert.equal(selectImageryZoom(15.9,17),17);
+ assert.equal(selectImageryZoom(15.7,17),16);
 });
