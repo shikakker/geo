@@ -76,3 +76,13 @@ Limitations: camera snapshots remain provider-hosted external images and are not
 - Confirmed P1 by source: the geocoder's `AbortSignal.timeout(10000)` was only included when an optional caller `signal` existed *and* the browser supported `AbortSignal.any`. On direct `search(query)` calls or browsers without `AbortSignal.any`, remote geocoding could hang indefinitely.
 - Fix: always attach a bounded deadline to a local AbortController; forward caller cancellation, race non-cooperative fetch and JSON body against abort and clean timer/listeners in all cases.
 - Three Node tests added for no-caller-signal timeout, caller abort and hung JSON. Verify exact-head Node tests, Vite build, API/browser Preview, keyboard query flow before release. Status PARTIAL until proven.
+
+## Streaming 3D Tiles / Gaussian GPU budget
+
+The optional Cesium renderer applies an estimated tile-cache budget of 96 MiB plus
+48 MiB overflow on low-memory phones, or 256 MiB plus 128 MiB on desktop.
+Prefetching destinations is disabled and requests while moving can be culled.
+These limits reduce the risk of PLATEAU/3DGS out-of-memory errors but cannot
+guarantee a strict maximum process allocation because tile decoding, JavaScript
+and the browser compositor also use RAM. Real 3D Tiles scene availability remains
+provider-dependent; the standard OSM map stays visible if scene loading fails.

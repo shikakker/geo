@@ -95,3 +95,13 @@ test('UI exposes weather time buttons, batch rendering and nonblocking map tile 
  assert.match(css,/prefers-reduced-motion/);
  assert.doesNotMatch(await read('map-progress.js'),/map\.remove\(\)/);
 });
+
+test('Cesium memory caps are bounded for mobile and lower than the default 1 GiB budget',async()=>{
+ const {sceneMemoryBudget}=await import('../cesium-lod.js');
+ const mobile=sceneMemoryBudget({width:390,memory:4,saveData:true});
+ const desktop=sceneMemoryBudget({width:1440,memory:16});
+ assert.ok(mobile.cacheBytes<desktop.cacheBytes);
+ assert.ok(mobile.maximumCacheOverflowBytes<desktop.maximumCacheOverflowBytes);
+ assert.equal(mobile.cacheBytes,96*1024*1024);
+ assert.ok(desktop.cacheBytes+desktop.maximumCacheOverflowBytes<=384*1024*1024);
+});

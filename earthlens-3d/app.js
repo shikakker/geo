@@ -14,7 +14,7 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 import 'maplibre-gl/dist/maplibre-gl.css';
 import 'leaflet/dist/leaflet.css';
 import {attachCanvasBuildingLayer} from './fallback-3d.js';
-import {LOD_PRESETS,isLodMode,lodSSE,applyLod,isSceneEnabled} from './cesium-lod.js';
+import {LOD_PRESETS,isLodMode,lodSSE,applyLod,isSceneEnabled,sceneMemoryBudget} from './cesium-lod.js';
 // MapLibre v6 uses a separate worker. Vite must bundle it via ?worker&url.
 maplibregl.setWorkerUrl(maplibreWorkerUrl);
 const $ = id => document.getElementById(id);
@@ -297,9 +297,16 @@ async function loadKhrScene(scene,epoch){
       });
       viewer.imageryLayers.addImageryProvider(provider);
     }catch(error){console.warn('Cesium satellite imagery unavailable:',error)}
+    const tilesetOptions={
+      ...sceneMemoryBudget(deviceForLod()),
+      maximumScreenSpaceError:lodSSE(app.lodMode,deviceForLod()),
+      preloadFlightDestinations:false,
+      cullRequestsWhileMoving:true,
+      loadSiblings:false
+    };
     const request=scene.type==='cesium-ion-khr'
-      ? C.Cesium3DTileset.fromIonAssetId(scene.assetId)
-      : C.Cesium3DTileset.fromUrl(scene.url);
+      ? C.Cesium3DTileset.fromIonAssetId(scene.assetId,tilesetOptions)
+      : C.Cesium3DTileset.fromUrl(scene.url,tilesetOptions);
     const tileset=await Promise.race([
       request,new Promise((_,reject)=>setTimeout(()=>reject(new Error('3D Tiles service timeout')),22000))
     ]);
@@ -649,5 +656,5 @@ function boot(){
  }catch(err){console.error('MapLibre init:',err);void activateRasterFallback(err.message||'WebGL map initialization failed')}
 }
 // Inspectable, read-only diagnostics used by real Chromium rendering tests.
-window.__earthlensDiagnostics=()=>({engine:app.fallbackActive?'canvas-2.5d':app.mapReady?'webgl-3d':'initializing',buildings:app.renderedBuildings,zoom:app.map?.getZoom?.()??null,sceneCount:app.scenes.length,activeScene:app.activeScene?.id||null,sceneVisibleTiles:app.sceneVisibleTiles,lodMode:app.lodMode,lodSSE:app.lodTileset?.maximumScreenSpaceError??null,lonTokenConfigured:ION_PUBLIC_TOKEN.length>0,globe:app.globeActive,satelliteRoofs:app.satelliteRoofs?.stats()||null,weatherWindLayer:Boolean(app.map?.getLayer?.('earthlens-weather-wind-vectors')),version:APP_VERSION,savedPlaces:app.placesHub?.store.count??0});
+window.__earthlensDiagnostics=()=>({engine:app.fallbackActive?'canvas-2.5d':app.mapReady?'webgl-3d':'initializing',buildings:app.renderedBuildings,zoom:app.map?.getZoom?.()??null,sceneCount:app.scenes.length,activeScene:app.activeScene?.id||null,sceneVisibleTiles:app.sceneVisibleTiles,lodMode:app.lodMode,lodSSE:app.lodTileset?.maximumScreenSpaceError??null,sceneGpuBytes:app.lodTileset?.totalMemoryUsageInBytes??null,lonTokenConfigured:ION_PUBLIC_TOKEN.length>0,globe:app.globeActive,satelliteRoofs:app.satelliteRoofs?.stats()||null,weatherWindLayer:Boolean(app.map?.getLayer?.('earthlens-weather-wind-vectors')),version:APP_VERSION,savedPlaces:app.placesHub?.store.count??0});
 try{boot()}catch(err){console.error(err);void activateRasterFallback(err.message||'Unexpected map bootstrap failure')}

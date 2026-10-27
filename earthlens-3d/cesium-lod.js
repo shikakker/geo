@@ -22,6 +22,18 @@ export function lodSSE(mode,device={}){
   if(mode==="quality")return 8;
   return recommendedSSE(device);
 }
+export function sceneMemoryBudget({width=1280,memory=8,saveData=false}={}){
+ // Cesium defaults can allow ~1 GiB for one tileset. Bound the estimated
+ // GPU cache on mobile; actual CPU memory and single oversize tiles are not
+ // guaranteed by this budget.
+ const constrained=saveData||width<=680||
+  (Number.isFinite(memory)&&memory<=4);
+ const MiB=1024*1024;
+ return {
+  cacheBytes:(constrained?96:256)*MiB,
+  maximumCacheOverflowBytes:(constrained?48:128)*MiB
+ };
+}
 export function applyLod(tileset,mode,device={}){
   if(!tileset)throw new TypeError("A loaded 3D Tiles tileset is required");
   const sse=lodSSE(mode,device);
