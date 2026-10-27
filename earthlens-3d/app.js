@@ -2,7 +2,9 @@ import * as maplibregl from 'maplibre-gl';
 import {initExploreLayers,updateExploreMap,showExploreAt,getExploreQuality} from './explore-layers.js';
 import {createMapProgress,watchMapTiles} from './map-progress.js';
 import {preserveEarthLensOverlays} from './style-transition.js';
-import {createSatelliteRoofProjection} from './satellite-roofs.js';
+import {createSatelliteRoofProjection,WORLD_IMAGERY_TILE_URL,
+ WORLD_IMAGERY_ATTRIBUTION} from './satellite-roofs.js';
+import {restoredImagery} from './layer-preferences.js';
 import {mountSavedPlaces} from './saved-places-ui.js';
 import {readSetting,writeSetting} from './saved-places.js';
 import {attachPlaceSearch} from './geosearch-ui.js';
@@ -279,6 +281,16 @@ async function loadKhrScene(scene,epoch){
       infoBox:false,navigationHelpButton:false,sceneModePicker:false,
       selectionIndicator:false,timeline:false,shadows:false,shouldAnimate:false
     });
+    // OSM tiles remain a fallback if satellite imagery lacks coverage.
+    // Actual 3D Tiles keep their own photographic mesh textures.
+    if(restoredImagery())try{
+      const provider=new C.UrlTemplateImageryProvider({
+        url:WORLD_IMAGERY_TILE_URL,maximumLevel:18,
+        credit:new C.Credit(WORLD_IMAGERY_ATTRIBUTION),
+        enablePickFeatures:false
+      });
+      viewer.imageryLayers.addImageryProvider(provider);
+    }catch(error){console.warn('Cesium satellite imagery unavailable:',error)}
     const request=scene.type==='cesium-ion-khr'
       ? C.Cesium3DTileset.fromIonAssetId(scene.assetId)
       : C.Cesium3DTileset.fromUrl(scene.url);
@@ -602,8 +614,12 @@ function boot(){
     attributionControl:false,hash:false
    });
    app.map=map;
-   app.satelliteRoofs=createSatelliteRoofProjection(map,{getQuality:getExploreQuality});
+   app.satelliteRoofs=createSatelliteRoofProjection(map,{
+    getQuality:getExploreQuality,
+    onStatus:detail=>window.dispatchEvent(new CustomEvent('earthlens:roof-status',{detail}))
+   });
    window.addEventListener('earthlens:satellite-changed',event=>app.satelliteRoofs?.setEnabled(event.detail?.enabled));
+   window.addEventListener('earthlens:roof-retry',()=>app.satelliteRoofs?.retry());
    window.addEventListener('earthlens:quality-changed',()=>app.satelliteRoofs?.ensure());
    app.stopProgress=watchMapTiles(map,app.stream);
    map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');

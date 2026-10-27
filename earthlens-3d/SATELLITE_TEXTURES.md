@@ -35,7 +35,13 @@ This document describes the **implemented** roof-texture pipeline and its limits
 - `npm run check`: geometry/UV/layer preference unit and regression tests.
 - `npm run build`: production Vite build.
 - `node tests/browser-smoke.mjs`: desktop/mobile availability, real vector building volumes and UI.
-- `node tests/satellite-roofs-browser.mjs`: deterministic local satellite-tile **test fixture**, actual Chromium/WebGL roof drawing, and pixel-difference comparison with the roof layer temporarily disabled. The fixture is **test-only**; production always requests the configured real imagery provider.
+- `node tests/satellite-roofs-browser.mjs`: deterministic local satellite-tile **test fixture**, actual Chromium/WebGL roof drawing, visible roof-load status, and pixel-difference comparison with the roof layer temporarily disabled. The fixture is **test-only**; production always requests the configured real imagery provider.
 - Read-only live diagnostics: `window.__earthlensDiagnostics().satelliteRoofs` reports enabled state, triangulated roof count, atlas count, loaded/failed atlases, RAM atlas reuse, rendering timestamp and drawn triangles.
 
 Do not mark the textured roof feature production-verified merely because a build passes. Require the exact-head GitHub Actions browser test to pass and inspect the generated screenshot and live imagery terms at the published URL.
+
+## World coverage and recovery
+
+- The selected satellite mode is also used as Cesium imagery when an authorized detailed 3D Tiles scene opens, with an OSM basemap underneath as network fallback. Photogrammetric buildings retain their own textures.
+- A browser-visible status below the Satellite switch distinguishes loading, successful roof textures, and unavailable imagery; retry happens only on explicit user action. Missing tiles never remove the standard 3D geometry.
+- Satellite imagery is subject to source coverage, cors and rights. An overhead capture alone does not provide photo-real facades or compensate for off-nadir displacement.

@@ -54,6 +54,8 @@ try{
  }
  const before=await page.evaluate(()=>window.__earthlensDiagnostics().satelliteRoofs);
  assert.ok(before.layer && before.roofs>0 && before.ready>0);
+ await page.locator('#explore-roof-status').waitFor({state:'visible',timeout:8000});
+ assert.match(await page.locator('#explore-roof-status').innerText(),/3D-крыши/);
  await page.waitForTimeout(650);
  const withRoofs=PNG.sync.read(await page.locator('#map').screenshot({animations:'disabled'}));
  await page.evaluate(()=>window.dispatchEvent(new CustomEvent(

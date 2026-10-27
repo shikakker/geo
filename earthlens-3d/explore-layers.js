@@ -551,6 +551,24 @@ function updateToggles(){
  const status=el('explore-quality-status');
  if(status)status.textContent=(state.qualityPreference==='auto'?'Авто · ':'')+(state.quality==='smooth'?'плавно':'подробно');
 }
+function roofStatus(event){
+ const node=el('explore-roof-status');
+ if(!node)return;
+ const report=event?.detail;
+ if(!state.imagery||state.fallback||!report?.enabled){
+  node.hidden=true;
+  return;
+ }
+ node.hidden=false;
+ node.classList.toggle('is-stale',report.failed>0);
+ if(report.failed>0)
+  node.textContent='Спутниковые крыши: часть снимков недоступна. Объёмные здания сохранены; нажмите «Обновить данные».';
+ else if(report.ready>0)
+  node.textContent='3D-крыши: '+report.ready+' участков спутникового изображения загружено';
+ else if(report.zoom<14.65)
+  node.textContent='3D-крыши появятся при приближении к зданиям';
+ else node.textContent=report.roofs>0?'Загружаем текстуры 3D-крыш…':'Ожидаем геометрию 3D-зданий…';
+}
 function satellite(){
  if(state.fallback){el('explore-satellite').setAttribute('aria-pressed','false');return}
  const map=state.map;if(!map?.getStyle||!map.isStyleLoaded?.())return;
@@ -577,7 +595,7 @@ function satellite(){
 function buildPanel(){
  if(el('explore-panel'))return;
  const aside=document.createElement('aside');aside.id='explore-panel';aside.className='explore-panel glass';
- aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник + 3D-крыши</button><span id="explore-count">Готово</span></div><p id="explore-weather-status" class="explore-licence" hidden></p><p id="explore-osm-status" class="explore-licence" role="status" aria-live="polite" hidden></p><p id="explore-camera-status" class="explore-licence" aria-live="polite" hidden></p><div class="explore-data-retry"><button id="explore-retry" type="button" title="Обновить данные активных слоёв">↻ Обновить данные</button><small id="explore-retry-status" aria-live="polite"></small></div><div class="explore-render-quality" role="group" aria-label="Качество отображения карты"><span>ОБЪЕКТЫ</span><button type="button" data-render-quality="auto" aria-pressed="true">Авто</button><button type="button" data-render-quality="smooth" aria-pressed="false">Плавно</button><button type="button" data-render-quality="detail" aria-pressed="false">Подробно</button><small id="explore-quality-status" aria-live="polite">Авто · плавно</small></div><details class="explore-oss"><summary>30 GIS-модулей движка</summary><span>Open-source код без API-оплаты; внешние источники ограничены условиями поставщиков</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
+ aside.innerHTML='<div class="explore-header"><strong>СЛОИ МИРА</strong><button type="button" id="explore-collapse" title="Свернуть панель" aria-label="Свернуть панель">−</button></div><div class="explore-layer-list">'+THEMES.map(t=>'<button type="button" data-explore-layer="'+t.id+'" aria-pressed="'+state.active.has(t.id)+'"><span>'+t.symbol+'</span>'+t.name+'</button>').join('')+'</div><div class="explore-switch-row"><button id="explore-satellite" type="button" aria-pressed="false">▧ Спутник + 3D-крыши</button><span id="explore-count">Готово</span></div><p id="explore-roof-status" class="explore-licence" role="status" aria-live="polite" hidden></p><p id="explore-weather-status" class="explore-licence" hidden></p><p id="explore-osm-status" class="explore-licence" role="status" aria-live="polite" hidden></p><p id="explore-camera-status" class="explore-licence" aria-live="polite" hidden></p><div class="explore-data-retry"><button id="explore-retry" type="button" title="Обновить данные активных слоёв">↻ Обновить данные</button><small id="explore-retry-status" aria-live="polite"></small></div><div class="explore-render-quality" role="group" aria-label="Качество отображения карты"><span>ОБЪЕКТЫ</span><button type="button" data-render-quality="auto" aria-pressed="true">Авто</button><button type="button" data-render-quality="smooth" aria-pressed="false">Плавно</button><button type="button" data-render-quality="detail" aria-pressed="false">Подробно</button><small id="explore-quality-status" aria-live="polite">Авто · плавно</small></div><details class="explore-oss"><summary>30 GIS-модулей движка</summary><span>Open-source код без API-оплаты; внешние источники ограничены условиями поставщиков</span></details><p class="explore-licence">OSM / OpenFreeMap · изображения © правообладателей. Камеры: Финляндия. Другие регионы — по доступности данных.</p>';
  el('app').append(aside);
  // Keep the actual map visible on phones. Layers are one tap away, not a
  // permanent 160px sidebar covering much of the viewport.
@@ -604,11 +622,15 @@ function buildPanel(){
  [...GEO_ADDONS,...GEO_ADDONS_NEXT,...GEO_ADDONS_VISUAL].forEach(addon=>{const line=document.createElement('span');line.textContent=addon.name+' · '+addon.purpose;addonDetails.append(line)});
  const detail=document.createElement('section');detail.id='explore-detail';detail.className='explore-detail glass';detail.hidden=true;detail.setAttribute('aria-label','Сведения и фотографии места');el('app').append(detail);
  updateToggles();
+ window.addEventListener('earthlens:roof-status',roofStatus);
  satellite();
  aside.querySelectorAll('[data-explore-layer]').forEach(btn=>btn.addEventListener('click',()=>{const k=btn.dataset.exploreLayer;state.active.has(k)?state.active.delete(k):state.active.add(k);storeLayers(state.active);updateToggles();draw();void renderWindVectors();schedule()}));
  aside.querySelectorAll('[data-weather-hour]').forEach(btn=>btn.addEventListener('click',()=>{const h=Number(btn.dataset.weatherHour);if(!WEATHER_HORIZONS.includes(h))return;state.weatherOffsetHours=h;updateToggles();schedule()}));
  aside.querySelectorAll('[data-render-quality]').forEach(btn=>btn.addEventListener('click',()=>{state.qualityController?.setPreference(btn.dataset.renderQuality)}));
- el('explore-retry').addEventListener('click',retryDataSources);
+ el('explore-retry').addEventListener('click',()=>{
+  retryDataSources();
+  window.dispatchEvent(new Event('earthlens:roof-retry'));
+ });
  collapseButton.addEventListener('click',()=>{aside.classList.toggle('collapsed');syncCollapse()});
  el('explore-satellite').addEventListener('click',()=>{if(state.fallback){alert('Спутниковый слой доступен в WebGL-режиме.');return}state.imagery=!state.imagery;storeImagery(state.imagery);satellite()});
 }

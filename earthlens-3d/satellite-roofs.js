@@ -274,7 +274,7 @@ function onSmallDevice() {
   (typeof navigator !== 'undefined' && navigator.deviceMemory <= 4);
 }
 
-export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = {}) {
+export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth',onStatus=()=>{}} = {}) {
  let enabled = false, program = null, glContext = null, scheduleTimer = null;
  let vertexArray = null;
  let activeLoads = 0, lastView = '', roofCount = 0, idleAttempts = 0;
@@ -282,6 +282,20 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
  let anisotropyExtension=null, maxAnisotropy=1;
  let origin = {x:0, y:0}, groups = new Map(), atlasEpoch = 0;
  const entries = new Map(), queue = [];
+ let lastStatusKey='';
+ function roofStatus(){
+  return {enabled,zoom:map.getZoom(),roofs:roofCount,atlases:entries.size,
+   ready:[...entries.values()].filter(x=>x.canvas).length,
+   failed:[...entries.values()].filter(x=>x.failed).length,loading:activeLoads};
+ }
+ function emitStatus(){
+  const status=roofStatus();
+  const key=[status.enabled,status.zoom.toFixed(1),status.roofs,status.ready,
+   status.failed,status.loading].join('/');
+  if(key===lastStatusKey)return;
+  lastStatusKey=key;
+  try{onStatus(status)}catch(error){console.debug('Roof status listener:',error)}
+ }
  const mobile = onSmallDevice();
  const maxAtlases = mobile ? 2 : 4;
  const maxRoofs = mobile ? 85 : 220;
@@ -483,16 +497,20 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
        !enabled) return;
     entry.canvas = canvas;
     entry.readyAt = performance.now();
+    emitStatus();
     map.triggerRepaint();
    }).catch(error => {
-    if(!controller.signal.aborted) {
-     entry.failed = true;
-     console.warn('Satellite roof imagery unavailable:', error.message);
-    }
+    if(entries.get(entry.key)!==entry||!enabled)return;
+    entry.failed=true; // Also report a provider timeout, not only HTTP errors.
+    console.warn('Satellite roof imagery unavailable:',
+     controller.signal.aborted?'request timeout':error.message);
+    emitStatus();
    }).finally(() => {
     clearTimeout(timeout);
+    if(entries.get(entry.key)===entry)entry.controller=null;
     activeLoads--;
     pump();
+    emitStatus();
    });
   }
  }
@@ -518,6 +536,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
   if(!enabled || !map.getLayer?.('earthlens-3d-buildings') ||
      map.getZoom() < MIN_ZOOM) {
    if(groups.size || entries.size) clearAll();
+   emitStatus();
    return;
   }
   const center = map.getCenter(), zoom = map.getZoom();
@@ -593,6 +612,7 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
   }
   roofCount = accepted;
   queueAtlases(desired);
+  emitStatus();
   map.triggerRepaint();
  }
 
@@ -648,9 +668,19 @@ export function createSatelliteRoofProjection(map, {getQuality=()=> 'smooth'} = 
      map.removeLayer(SATELLITE_ROOF_LAYER_ID);
     clearAll();
    } else this.ensure();
+   emitStatus();
   },
   ensure() {
    if(ensureLayer())schedule(true, 80);
+  },
+  retry(){
+   if(!enabled)return;
+   for(const entry of entries.values())if(entry.failed&&!entry.controller){
+    entry.failed=false;
+    queue.push(entry);
+   }
+   pump();
+   emitStatus();
   },
   stats() {
    return {enabled, roofs:roofCount, atlases:entries.size,
