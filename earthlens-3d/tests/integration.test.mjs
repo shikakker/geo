@@ -118,7 +118,8 @@ test('Automatic close-up transitions point to genuine KHR 3D Tiles scenes',async
  const js=await readFile(new URL('app.js',root),'utf8');
  assert.match(js,/Cesium3DTileset\.fromIonAssetId\(scene\.assetId,tilesetOptions\)/);
  assert.match(js,/sceneMemoryBudget\(deviceForLod\(\)\)/);
- assert.match(js,/maximumCacheOverflowBytes/);
+ const lodSource=await readFile(new URL('cesium-lod.js',root),'utf8');
+ assert.match(lodSource,/maximumCacheOverflowBytes/);
  assert.match(js,/maximumScreenSpaceError/);
  const html=await readFile(new URL('index.html',root),'utf8');
  assert.match(html,/data-scene="redmond-campus-khr"[^>]*hidden/);
@@ -175,7 +176,8 @@ test('Cesium 3D Gaussian splat LOD presets implement tutorial SSE and token-gate
  const js=await readFile(new URL('app.js',root),'utf8');
  assert.match(js,/Cesium3DTileset\.fromIonAssetId\(scene\.assetId,tilesetOptions\)/);
  assert.match(js,/sceneMemoryBudget\(deviceForLod\(\)\)/);
- assert.match(js,/maximumCacheOverflowBytes/);
+ const lodSource=await readFile(new URL('cesium-lod.js',root),'utf8');
+ assert.match(lodSource,/maximumCacheOverflowBytes/);
  assert.match(js,/Ion\.defaultAccessToken=ION_PUBLIC_TOKEN/);
  assert.match(js,/showLodControls\(tileset,scene,viewer\)/);
  assert.match(js,/tileset\.loadProgress\.addEventListener/);
