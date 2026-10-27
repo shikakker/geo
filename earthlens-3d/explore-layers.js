@@ -570,7 +570,13 @@ function roofStatus(event){
  else node.textContent=report.roofs>0?'Загружаем текстуры 3D-крыш…':'Ожидаем геометрию 3D-зданий…';
 }
 function satellite(){
- if(state.fallback){el('explore-satellite').setAttribute('aria-pressed','false');return}
+ const toggle=el('explore-satellite');
+ toggle?.setAttribute('aria-pressed',String(!state.fallback&&state.imagery));
+ // Always sync WebGL, including during style transitions and when the
+ // satellite raster layer is temporarily unavailable.
+ window.dispatchEvent(new CustomEvent('earthlens:satellite-changed',
+  {detail:{enabled:!state.fallback&&state.imagery}}));
+ if(state.fallback)return;
  const map=state.map;if(!map?.getStyle||!map.isStyleLoaded?.())return;
  const id='earthlens-imagery-satellite',provider='earthlens-world-imagery';
  const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
@@ -588,8 +594,7 @@ function satellite(){
    map.setPaintProperty(id,'raster-opacity',0);
    setTimeout(()=>{if(!state.imagery&&map.getLayer(id))map.setLayoutProperty(id,'visibility','none')},reduced?0:850);
   }
-  el('explore-satellite').setAttribute('aria-pressed',String(state.imagery));
-  window.dispatchEvent(new CustomEvent('earthlens:satellite-changed',{detail:{enabled:state.imagery}}));
+  toggle?.setAttribute('aria-pressed',String(state.imagery));
  }catch(error){console.debug('Imagery provider not ready',error)}
 }
 function buildPanel(){

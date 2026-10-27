@@ -98,6 +98,12 @@ function initOpenBuildings(){
     if(!map.getSource(source))map.addSource(source,{type:'vector',url:'https://tiles.openfreemap.org/planet'});
   }
   const height=['coalesce',['to-number',['get','render_height']],['to-number',['get','height']],12];
+  const baseColor=['interpolate',['linear'],height,0,'#b5c5b8',18,'#c5cabe',55,'#d9c7aa',135,'#e7c9a5',280,'#f3dcc2'];
+  // Honor mapped facade materials, without presenting synthetic photographs.
+  const materials=['downcase',['to-string',['coalesce',['get','building:material'],['get','material'],'']]];
+  const facadeColor=['match',materials,
+   'brick','#bb8775','concrete','#b7bcb8','glass','#9eb9c5',
+   'stone','#c7bda7','wood','#a88d6b','metal','#acb9c4',baseColor];
   const minHeight=['coalesce',['to-number',['get','render_min_height']],['to-number',['get','min_height']],0];
   const before=layers.find(l=>l.type==='symbol'&&l.layout?.['text-field'])?.id
     ||layers.find(l=>l.type==='symbol')?.id;
@@ -105,7 +111,7 @@ function initOpenBuildings(){
     id,type:'fill-extrusion',source,'source-layer':'building',minzoom:13.3,
     filter:['!=',['get','hide_3d'],true],
     paint:{
-      'fill-extrusion-color':['interpolate',['linear'],height,0,'#b5c5b8',18,'#c5cabe',55,'#d9c7aa',135,'#e7c9a5',280,'#f3dcc2'],
+      'fill-extrusion-color':facadeColor,
       'fill-extrusion-height':['interpolate',['linear'],['zoom'],13.4,0,14.2,height],
       'fill-extrusion-base':['interpolate',['linear'],['zoom'],13.4,0,14.2,minHeight],
       'fill-extrusion-opacity':window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?0.94:0,

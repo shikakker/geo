@@ -95,3 +95,14 @@ test('Roof imagery uses smooth zoom fade and hysteresis around tile boundaries',
  assert.equal(selectImageryZoom(15.9,17),17);
  assert.equal(selectImageryZoom(15.7,17),16);
 });
+
+test('Satellite state reaches WebGL even before raster style is loaded',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('../explore-layers.js',import.meta.url),'utf8');
+ const start=source.indexOf('function satellite(){');
+ const end=source.indexOf('function buildPanel()',start);
+ assert.ok(start>=0&&end>start);
+ const fn=source.slice(start,end);
+ assert.ok(fn.indexOf("earthlens:satellite-changed")<fn.indexOf("map.isStyleLoaded"),
+  'toggle must reach renderer before early style-load returns');
+});

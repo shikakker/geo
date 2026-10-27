@@ -26,7 +26,7 @@ This document describes the **implemented** roof-texture pipeline and its limits
 
 - Source: Esri World Imagery and its upstream contributors. Its attribution is preserved on the MapLibre raster source.
 - Hosted imagery has licensing, coverage, rate, storage, and availability restrictions. **Do not assume it is free or unlimited**, do not bulk-download or permanently store the source images without permission, and verify service rights for a deployment.
-- An overhead satellite image does **not** supply true building facade photographs. Streets, building sides and roofs can be off-nadir / occluded in the source capture. Incorrectly matched or unavailable tiles keep a neutral material.
+- An overhead satellite image does **not** supply true building facade photographs. Streets, building sides and roofs can be off-nadir / occluded in the source capture. When the vector tile includes OSM `building:material`, facade volumes are shaded according to brick/concrete/glass/stone/wood/metal; otherwise a neutral material remains. This material rendering is not a fabricated photographic facade. Incorrectly matched or unavailable tiles keep a neutral material.
 - Projection onto an OSM roof outline does not correct the off-nadir roof displacement, reconstruction error, date mismatch or color mismatch between separate captures. True orthophotos or surveyed textured 3D models are needed for survey-grade alignment.
 - Gaussian Splatting and photogrammetry are only used for known published datasets with authorized access; they are not generated from arbitrary satellite tiles in the browser.
 
